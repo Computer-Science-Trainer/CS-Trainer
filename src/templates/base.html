@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %}</title>
+    <style>
+        /* Стили для сообщений */
+        .alert {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+        .alert-error {
+            color: #a94442;
+            background-color: #f2dede;
+            border-color: #ebccd1;
+        }
+        .alert-success {
+            color: #3c763d;
+            background-color: #dff0d8;
+            border-color: #d6e9c6;
+        }
+    </style>
+</head>
+<body>
+    <!-- Блок для отображения сообщений -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Основное содержимое страницы -->
+    {% block content %}{% endblock %}
+</body>
+</html>
