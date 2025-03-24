@@ -34,10 +34,6 @@ def authorize_google():
     token = google.authorize_access_token()
     resp = google.get('userinfo')
     user_info = resp.json()
-    # Здесь можно создать или найти пользователя в базе данных
-    # и выполнить вход
-    # todo: создать или найти пользователя в базе данных
-    #  и установить сессию
 
     print(f"User info from Google: {user_info}")
 
