@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+<h1>Добро пожаловать, {{ user.username or user.email }}!</h1>
+{% if user.avatar %}
+    <img src="{{ url_for('static', filename='uploads/' + user.avatar) }}" alt="Avatar" width="100">
+{% endif %}
+<p>Email: {{ user.email }}</p>
+<a href="{{ url_for('logout') }}">Выйти</a>
+{% endblock %}
