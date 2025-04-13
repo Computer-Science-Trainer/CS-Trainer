@@ -88,7 +88,7 @@ fi
 
 echo "Starting Uvicorn server with SSL..."
 
-sudo -E PATH=$PATH:${VENV_DIR}/bin nohup uvicorn main:app --host 0.0.0.0 --port ${SSL_PORT} --ssl-keyfile "${SSL_KEY_FILE}" --ssl-certfile "${SSL_CERT_FILE}" > "${LOG_FILE}" 2>&1 &
+sudo -E env PATH=$PATH:${VENV_DIR}/bin nohup uvicorn main:app --host 0.0.0.0 --port ${SSL_PORT} --ssl-keyfile "${SSL_KEY_FILE}" --ssl-certfile "${SSL_CERT_FILE}" > "${LOG_FILE}" 2>&1 &
 echo $! > "${PID_FILE}"
 
 sleep 3
