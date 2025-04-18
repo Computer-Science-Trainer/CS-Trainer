@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware  # Middleware для наст
 from enum import Enum  # Enum для создания перечислений
 import random  # Для генерации случайных чисел
 import uvicorn  # Для запуска приложения
-from db_connection import get_dict_users, save_user, change_db_users
+from db_connection import get_dict_users, save_user, change_db_users, get_leaderboard
 
 # Создаем экземпляр приложения FastAPI
 app = FastAPI()
@@ -55,6 +55,13 @@ def print_verification_code(email: str, code: str):
 def update_users():
     global users
     users = get_dict_users()
+
+
+def check_nickname(nickname):
+    for i in users:
+        if nickname == i['nickname']:
+            return False
+    return True
 
 # Модели запросов для валидации входных данных
 class LoginRequest(BaseModel):
@@ -167,6 +174,7 @@ class ErrorCodes:
     USER_NOT_FOUND = "user_not_found"  # Пользователь не найден
     INVALID_CREDENTIALS = "invalid_credentials"  # Неверные учетные данные
     USER_EXISTS = "user_exists"  # Пользователь уже существует
+    NICKNAME_EXISTS = 'nickname_exist' # Этот ник уже занят
     INVALID_VERIFICATION_CODE = "invalid_verification_code"  # Неверный код верификации
     ACCOUNT_NOT_VERIFIED = "account_not_verified"  # Аккаунт не верифицирован
     PASSWORD_CHANGE_SUCCESS = "password_change_success"  # Пароль успешно изменен
@@ -182,6 +190,7 @@ def login(data: LoginRequest):
     Обрабатывает запрос на вход.
     Проверяет email, пароль и статус верификации пользователя.
     """
+    print(users)
     if data.email not in users:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
@@ -221,6 +230,13 @@ def register(data: RegisterRequest):
         raise HTTPException(
             status_code=400,
             detail={"code": ErrorCodes.USER_EXISTS}
+        )
+
+    if check_nickname(data.nickname):
+        # Если этот ник уже занят, возвращаем ошибку 400
+        raise HTTPException(
+            status_code=400,
+            detail={"code": ErrorCodes.NICKNAME_EXISTS}
         )
 
     # Генерируем код верификации
@@ -269,7 +285,7 @@ def verify(data: VerifyRequest):
             detail={"code": ErrorCodes.INVALID_VERIFICATION_CODE}
         )
     # Активируем аккаунт
-    trace_back = change_db_users(user['email'], (('verified', True)))
+    trace_back = change_db_users(user['email'], (('verified', 1)))
     if trace_back != 'success':
         raise HTTPException(
             # справить код ошибки
@@ -433,6 +449,13 @@ def resend_code(data: ResendCodeRequest):
     return {
         "message": {"code": ErrorCodes.VERIFICATION_CODE_SENT},
     }
+
+
+@app.get('/api/leaderboard')
+def leaderboard():
+    info = get_leaderboard(len(users))
+    print(info)
+    return info
 
 
 # Точка входа в приложение
