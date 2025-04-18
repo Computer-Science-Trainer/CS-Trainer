@@ -190,6 +190,7 @@ def login(data: LoginRequest):
     Обрабатывает запрос на вход.
     Проверяет email, пароль и статус верификации пользователя.
     """
+    print(users)
     if data.email not in users:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
@@ -450,9 +451,8 @@ def resend_code(data: ResendCodeRequest):
     }
 
 
-@app.post('/auth/leaderboard')
+@app.get('/api/leaderboard')
 def leaderboard():
-    print('0')
     info = get_leaderboard(len(users))
     print(info)
     return info

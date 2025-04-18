@@ -82,33 +82,32 @@ def users_from_data_to_dct(data):
     records = list()
     for i in data:
         records.append({'id': i[0],
-                'email': i[1],
-               'password': i[2],
-               'nickname': i[3],
-               'achievement': i[4],
-               'avatar': i[5],
-               'fundamentals': i[6],
-               'algorithms': i[7],
-               'verified': i[8],
-               'verification_code': i[9]
+                 'email': i[1],
+                'password': i[2],
+                'nickname': i[3],
+                'achievement': i[4],
+                'avatar': i[5],
+                'fund_id': i[6],
+                'algo_id': i[7],
+                'verified': i[8],
+                'verification_code': i[9]
                 })
     return records
 
 def fund_alg_from_data_to_dct(data):
-    records = list()
+    records = []
     for i in data:
-        records.append({'id': i[0],
-                'users_id': i[1],
-               'score': i[2],
-               'testPassed': i[3],
-               'totalTests': i[4],
-               'lastActivity': i[5],
-               'nickname': i[6],
-               'achievement': i[7]
-            })
+        records.append({
+            'id':          i[0],
+            'user_id':     i[1],
+            'score':       i[2],
+            'testPassed':  i[3],
+            'totalTests':  i[4],
+            'lastActivity':i[5],
+        })
     return records
 
-with open('database_user_home.json') as file:
+with open('database_user.json') as file:
     file_json_data = json.load(file)
 try:
     connection = pymysql.connect(
