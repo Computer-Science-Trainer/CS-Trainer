@@ -1,5 +1,50 @@
 import pymysql
 import json
+import bcrypt
+# from datetime import datetime, timedelta
+import re
+
+
+def validate_password(password: str) -> str:
+    """Проверка сложности пароля"""
+    if len(password) < 8:
+        return PasswordErrors.TOO_SHORT
+    if not re.search(r"[A-Z]", password):
+        return PasswordErrors.NO_UPPERCASE
+    if not re.search(r"[a-z]", password):
+        return PasswordErrors.NO_LOWERCASE
+    if not re.search(r"\d", password):
+        return PasswordErrors.NO_DIGIT
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return PasswordErrors.NO_SPECIAL_CHAR
+    return None
+
+
+class PasswordErrors:
+    """
+    Класс с ошибками валидации пароля.
+    Используется для стандартизации сообщений.
+    """
+    TOO_SHORT = "password_too_short"  # Пароль слишком короткий
+    NO_UPPERCASE = "password_no_uppercase"  # Нет заглавных букв
+    NO_LOWERCASE = "password_no_lowercase"  # Нет строчных букв
+    NO_DIGIT = "password_no_digit"  # Нет цифр
+    NO_SPECIAL_CHAR = "password_no_special_char"  # Нет спецсимволов
+
+
+def hash_password(password: str) -> str:
+    """Хеширование пароля с использованием bcrypt"""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Проверка пароля"""
+    return bcrypt.checkpw(
+        plain_password.encode('utf-8'),
+        hashed_password.encode('utf-8')
+    )
 
 
 def get_leaderboard(number_of_users):
@@ -22,10 +67,13 @@ def get_dict_users():
     records = users_from_data_to_dct(data)
     return records
 
+
 def save_user(email, password, nickname, verified, verification_code):
     try:
-        query = f"""insert users(email, password, nickname, achievement, avatar, fundamentals, algorithms, verified, verification_code)
-            values ('{email}', '{password}', '{nickname}', '123', 'aaa', 0, 0, {verified}, '{verification_code}')"""
+        hashed_password = hash_password(password)  # Хешируем пароль перед сохранением
+        query = f"""insert users(email, password, nickname, achievement, avatar,
+                fundamentals, algorithms, verified, verification_code)
+                values ('{email}', '{password}', '{nickname}', '123', 'aaa', 0, 0, {verified}, '{verification_code}')"""
         cursor.execute(query)
         connection.commit()
         return 'success'
@@ -55,10 +103,11 @@ def get_algorithms_sort():
     return records
 
 
-
 def change_db_users(email, *args):
     try:
-        for i in args:
+        for field, value in args:
+            if field == 'password':
+                value = hash_password(value)
             query = f"""UPDATE users 
                 SET {i[0]} = '{i[1]}'
                 WHERE email = '{email}';"""
@@ -78,6 +127,7 @@ def user_information(email):
         return 'found_more'
     return users_from_data_to_dct(data)
 
+
 def users_from_data_to_dct(data):
     records = list()
     for i in data:
@@ -94,6 +144,7 @@ def users_from_data_to_dct(data):
                 })
     return records
 
+
 def fund_alg_from_data_to_dct(data):
     records = []
     for i in data:
@@ -106,6 +157,7 @@ def fund_alg_from_data_to_dct(data):
             'lastActivity':i[5],
         })
     return records
+
 
 with open('database_user.json') as file:
     file_json_data = json.load(file)
