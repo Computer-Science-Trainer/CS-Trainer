@@ -1,0 +1,23 @@
+# Database credentials
+database_user.json
+
+# Virtual environment files
+venv/
+
+# Python cache files
+__pycache__/
+
+# macOS Finder metadata
+.DS_Store
+
+# log files
+*.log
+
+# temporary files
+*.tmp
+
+# PID files
+*.pid
+
+# SSL certificates
+*.pem
