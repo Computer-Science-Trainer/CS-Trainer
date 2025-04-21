@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware  # Middleware для наст
 from enum import Enum  # Enum для создания перечислений
 import random  # Для генерации случайных чисел
 import uvicorn  # Для запуска приложения
-from db_connection import get_dict_users, save_user, change_db_users, get_leaderboard
+from db_connection import save_user, change_db_users, get_leaderboard, user_information
 
 # Создаем экземпляр приложения FastAPI
 app = FastAPI()
@@ -24,10 +24,6 @@ app.add_middleware(
     allow_headers=["*"],  # Разрешение всех заголовков
 )
 
-
-# "База данных" в виде словаря, где ключ - email пользователя, а значение - данные пользователя
-# users: Dict[str, dict] = {}
-users = get_dict_users()
 
 # Функция для генерации 6-значного кода верификации
 def generate_verification_code() -> str:
@@ -50,18 +46,6 @@ def print_verification_code(email: str, code: str):
     print(f"🔢 Код верификации: \033[1;32m{code}\033[0m")  # Код верификации (зеленый цвет)
     print("═" * 50 + "\n")  # Разделитель
 
-
-# Функция для обновления юзера в соответствии с базой данных
-def update_users():
-    global users
-    users = get_dict_users()
-
-
-def check_nickname(nickname):
-    for i in users:
-        if nickname == i['nickname']:
-            return False
-    return True
 
 # Модели запросов для валидации входных данных
 class LoginRequest(BaseModel):
@@ -190,15 +174,14 @@ def login(data: LoginRequest):
     Обрабатывает запрос на вход.
     Проверяет email, пароль и статус верификации пользователя.
     """
-    print(users)
-    if data.email not in users:
+    user = user_information(data.email)
+    if user == 'not_found':
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
             detail={"code": ErrorCodes.USER_NOT_FOUND}
         )
 
-    user = users[data.email]  # Получаем данные пользователя
     if user["password"] != data.password:
         # Если пароль неверный, возвращаем ошибку 401
         raise HTTPException(
@@ -207,6 +190,17 @@ def login(data: LoginRequest):
         )
 
     if not user["verified"]:
+        verification_code = generate_verification_code()
+        trace_back = change_db_users(user['email'], (('verification_code', verification_code)))
+        if trace_back != 'success':
+            raise HTTPException(
+                # справить код ошибки
+                status_code=500,
+                detail={"code": ErrorCodes.SAVING_FAILED}
+            )
+
+        print_verification_code(str(data.email), verification_code)
+
         # Если аккаунт не верифицирован, возвращаем ошибку 403
         raise HTTPException(
             status_code=403,
@@ -224,19 +218,12 @@ def register(data: RegisterRequest):
     Обрабатывает запрос на регистрацию.
     Создает нового пользователя и отправляет код верификации.
     """
-
-    if data.email in users:
+    user = user_information(data.email)
+    if user != 'not_found':
         # Если пользователь уже существует, возвращаем ошибку 400
         raise HTTPException(
             status_code=400,
             detail={"code": ErrorCodes.USER_EXISTS}
-        )
-
-    if check_nickname(data.nickname):
-        # Если этот ник уже занят, возвращаем ошибку 400
-        raise HTTPException(
-            status_code=400,
-            detail={"code": ErrorCodes.NICKNAME_EXISTS}
         )
 
     # Генерируем код верификации
@@ -251,9 +238,6 @@ def register(data: RegisterRequest):
             detail={"code": ErrorCodes.SAVING_FAILED}
         )
 
-    # Обновляем список юзеров
-    update_users()
-    # Выводим код верификации в терминал
     print_verification_code(str(data.email), verification_code)
 
     # Возвращаем сообщение об успешной регистрации
@@ -270,13 +254,13 @@ def verify(data: VerifyRequest):
     Обрабатывает запрос на верификацию email.
     Проверяет код верификации и активирует аккаунт.
     """
-    if data.email not in users:
+    user = user_information(data.email)
+    if user == 'not_found':
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
             detail={"code": ErrorCodes.USER_NOT_FOUND}
         )
-    user = users[data.email]
 
     if data.code != user["verification_code"]:
         # Если код неверный, возвращаем ошибку 400
@@ -292,7 +276,6 @@ def verify(data: VerifyRequest):
             status_code=500,
             detail={"code": ErrorCodes.SAVING_FAILED}
         )
-    update_users()
     return {
         "token": generate_token(user['email']),
         "message": {"code": ErrorCodes.VERIFICATION_SUCCESS}
@@ -306,15 +289,14 @@ def recover(data: RecoverRequest):
     Обрабатывает запрос на восстановление пароля.
     Отправляет код восстановления на email.
     """
-
-    if data.email not in users:
+    user = user_information(data.email)
+    if user == 'not_found':
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
             detail={"code": ErrorCodes.USER_NOT_FOUND}
         )
 
-    user = users[data.email]
     # Генерируем код восстановления
     verification_code = generate_verification_code()
     trace_back = change_db_users(user['email'], (('verification_code', verification_code)))
@@ -325,7 +307,6 @@ def recover(data: RecoverRequest):
             detail={"code": ErrorCodes.SAVING_FAILED}
         )
 
-    update_users()
     # Выводим код восстановления в терминал
     print_verification_code(user['email'] , verification_code)
 
@@ -341,13 +322,14 @@ def recover_verify(data: RecoverVerifyRequest):
     """
     Обрабатывает запрос на проверку кода восстановления.
     """
-    if data.email not in users:
+    user = user_information(data.email)
+    if user == 'not_found':
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
             detail={"code": ErrorCodes.USER_NOT_FOUND}
         )
-    user = users[data.email]
+
     if data.code != user["verification_code"]:
         # Если код неверный, возвращаем ошибку 400
         raise HTTPException(
@@ -361,7 +343,6 @@ def recover_verify(data: RecoverVerifyRequest):
             status_code=500,
             detail={"code": ErrorCodes.SAVING_FAILED}
         )
-    update_users()
     return {"message": {"code": "recovery_verified"}}
 
 
@@ -372,13 +353,14 @@ def change_password(data: ChangePasswordRequest):
     Обрабатывает запрос на смену пароля.
     Проверяет код восстановления и обновляет пароль.
     """
-    if data.email not in users:
+    user = user_information(data.email)
+    if user == 'not_found':
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
             detail={"code": ErrorCodes.USER_NOT_FOUND}
         )
-    user = users[data.email]
+
     if data.code != user["verification_code"]:
         # Если код неверный, возвращаем ошибку 400
         raise HTTPException(
@@ -402,7 +384,6 @@ def change_password(data: ChangePasswordRequest):
             status_code=500,
             detail={"code": ErrorCodes.SAVING_FAILED}
         )
-    update_users()
     return {
         "token": generate_token(user['email']),
         "message": {"code": ErrorCodes.PASSWORD_CHANGE_SUCCESS}
@@ -416,13 +397,14 @@ def resend_code(data: ResendCodeRequest):
     Обрабатывает запрос на повторную отправку кода.
     Генерирует новый код и отправляет его на email.
     """
-    if data.email not in users:
+    user = user_information(data.email)
+    if user == 'not_found':
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
             detail={"code": ErrorCodes.USER_NOT_FOUND}
         )
-    user = users[data.email]
+
     if data.code_type == CodeType.VERIFICATION:
         if user["verified"]:
             # Если аккаунт уже верифицирован, возвращаем ошибку 400
@@ -441,7 +423,6 @@ def resend_code(data: ResendCodeRequest):
             detail={"code": ErrorCodes.SAVING_FAILED}
         )
 
-    update_users()
     # Выводим новый код в терминал
     print_verification_code(user['email'], new_code)
 
@@ -453,7 +434,7 @@ def resend_code(data: ResendCodeRequest):
 
 @app.get('/api/leaderboard')
 def leaderboard():
-    info = get_leaderboard(len(users))
+    info = get_leaderboard()
     print(info)
     return info
 

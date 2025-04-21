@@ -1,12 +1,16 @@
 import pymysql
 import json
+import time
 
 
-def get_leaderboard(number_of_users):
+def get_leaderboard(number_of_users=10):
+    query = 'SELECT COUNT(*) FROM users;'
+    cursor.execute(query)
+    number = cursor.fetchone()[0]
     fundamentals = get_fundamentals_sort()
     algorithms = get_algorithms_sort()
     result = dict()
-    if number_of_users < 200:
+    if number < 200:
         result['fundamentals'] = fundamentals
         result['algorithms'] = algorithms
     else:
@@ -15,17 +19,22 @@ def get_leaderboard(number_of_users):
     return result
 
 
-def get_dict_users():
-    query = f"SELECT * FROM users;"  # Запрос для получения всех данных из таблицы
-    cursor.execute(query)
-    data = cursor.fetchall()
-    records = users_from_data_to_dct(data)
-    return records
-
-def save_user(email, password, nickname, verified, verification_code):
+def save_user(email, password, username, verified, verification_code):
     try:
-        query = f"""insert users(email, password, nickname, achievement, avatar, fundamentals, algorithms, verified, verification_code)
-            values ('{email}', '{password}', '{nickname}', '123', 'aaa', 0, 0, {verified}, '{verification_code}')"""
+        query = f"""insert users(email, password, username, achievement, avatar, verified, verification_code)
+            values ('{email}', '{password}', '{username}', '0', '0', {verified}, '{verification_code}')"""
+
+        cursor.execute(query)
+        connection.commit()
+        user = user_information(email)
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        query = f"""INSERT INTO fundamentals(user_id, testsPassed, totalTests, lastActivity)
+            VALUES ('{user['id']}', 0, 0, '{current_time}')"""
+        cursor.execute(query)
+        connection.commit()
+        query = f"""INSERT INTO algorithms(user_id, testsPassed, totalTests, lastActivity)
+            VALUES ('{user['id']}', 0, 0, '{current_time}')"""
         cursor.execute(query)
         connection.commit()
         return 'success'
@@ -34,9 +43,9 @@ def save_user(email, password, nickname, verified, verification_code):
 
 
 def get_fundamentals_sort():
-    query = f"""SELECT fundamentals.*, users.nickname, users.achievement, users.avatar
+    query = f"""SELECT fundamentals.*, users.username, users.achievement, users.avatar
                 FROM fundamentals
-                JOIN users ON fundamentals.users_id = users.id
+                JOIN users ON fundamentals.user_id = users.id
                 ORDER BY fundamentals.score"""
     cursor.execute(query)
     data = cursor.fetchall()
@@ -45,15 +54,14 @@ def get_fundamentals_sort():
 
 
 def get_algorithms_sort():
-    query = f"""SELECT algorithms.*, users.nickname, users.achievement, users.avatar
+    query = f"""SELECT algorithms.*, users.username, users.achievement, users.avatar
                 FROM algorithms
-                JOIN users ON algorithms.users_id = users.id
+                JOIN users ON algorithms.user_id = users.id
                 ORDER BY algorithms.score;"""
     cursor.execute(query)
     data = cursor.fetchall()
     records = fund_alg_from_data_to_dct(data)
     return records
-
 
 
 def change_db_users(email, *args):
@@ -71,27 +79,35 @@ def change_db_users(email, *args):
 
 def user_information(email):
     cursor.execute(f"SELECT * FROM users WHERE email = '{email}';")
-    data = cursor.fetchall()
-    if len(data) == 0:
+    user = cursor.fetchone()
+
+    if user is None:
         return 'not_found'
-    if len(data) > 1:
-        return 'found_more'
-    return users_from_data_to_dct(data)
+    else:
+        dct = {'id': user[0],
+                'email': user[1],
+                'password': user[2],
+                'nickname': user[3],
+                'achievement': user[4],
+                'avatar': user[5],
+                'verified': user[6],
+                'verification_code': user[7]
+                }
+        return dct
+
 
 def users_from_data_to_dct(data):
-    records = list()
+    records = dict()
     for i in data:
-        records.append({'id': i[0],
+        records[i[1]] = {'id': i[0],
                  'email': i[1],
                 'password': i[2],
                 'nickname': i[3],
                 'achievement': i[4],
                 'avatar': i[5],
-                'fund_id': i[6],
-                'algo_id': i[7],
-                'verified': i[8],
-                'verification_code': i[9]
-                })
+                'verified': i[6],
+                'verification_code': i[7]
+                }
     return records
 
 def fund_alg_from_data_to_dct(data):
