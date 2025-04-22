@@ -109,20 +109,6 @@ def user_information(email):
                 }
         return dct
 
-#delete
-def users_from_data_to_dct(data):
-    records = dict()
-    for i in data:
-        records[i[1]] = {'id': i[0],
-                 'email': i[1],
-                'password': i[2],
-                'nickname': i[3],
-                'achievement': i[4],
-                'avatar': i[5],
-                'verified': i[6],
-                'verification_code': i[7]
-                }
-    return records
 
 def fund_alg_from_data_to_dct(data):
     records = []
