@@ -9,15 +9,8 @@ def validate_password(password: str) -> str:
     """Проверка сложности пароля"""
     if len(password) < 8:
         return PasswordErrors.TOO_SHORT
-    if not re.search(r"[A-Z]", password):
-        return PasswordErrors.NO_UPPERCASE
-    if not re.search(r"[a-z]", password):
-        return PasswordErrors.NO_LOWERCASE
-    if not re.search(r"\d", password):
-        return PasswordErrors.NO_DIGIT
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        return PasswordErrors.NO_SPECIAL_CHAR
-    return None
+    if len(password) > 32:
+        return PasswordErrors.TOO_LONG
 
 
 class PasswordErrors:
@@ -26,10 +19,7 @@ class PasswordErrors:
     Используется для стандартизации сообщений.
     """
     TOO_SHORT = "password_too_short"  # Пароль слишком короткий
-    NO_UPPERCASE = "password_no_uppercase"  # Нет заглавных букв
-    NO_LOWERCASE = "password_no_lowercase"  # Нет строчных букв
-    NO_DIGIT = "password_no_digit"  # Нет цифр
-    NO_SPECIAL_CHAR = "password_no_special_char"  # Нет спецсимволов
+    TOO_LONG = "password_too_long"  # Пароль слишком длинный
 
 
 def hash_password(password: str) -> str:
@@ -68,12 +58,12 @@ def get_dict_users():
     return records
 
 
-def save_user(email, password, nickname, verified, verification_code):
+def save_user(email, password, username, verified, verification_code):
     try:
         hashed_password = hash_password(password)  # Хешируем пароль перед сохранением
-        query = f"""insert users(email, password, nickname, achievement, avatar,
+        query = f"""insert users(email, password, username, achievement, avatar,
                 fundamentals, algorithms, verified, verification_code)
-                values ('{email}', '{password}', '{nickname}', '123', 'aaa', 0, 0, {verified}, '{verification_code}')"""
+                values ('{email}', '{hashed_password}', '{username}', '123', 'aaa', 0, 0, {verified}, '{verification_code}')"""
         cursor.execute(query)
         connection.commit()
         return 'success'
@@ -82,7 +72,7 @@ def save_user(email, password, nickname, verified, verification_code):
 
 
 def get_fundamentals_sort():
-    query = f"""SELECT fundamentals.*, users.nickname, users.achievement, users.avatar
+    query = f"""SELECT fundamentals.*, users.username, users.achievement, users.avatar
                 FROM fundamentals
                 JOIN users ON fundamentals.users_id = users.id
                 ORDER BY fundamentals.score"""
@@ -93,7 +83,7 @@ def get_fundamentals_sort():
 
 
 def get_algorithms_sort():
-    query = f"""SELECT algorithms.*, users.nickname, users.achievement, users.avatar
+    query = f"""SELECT algorithms.*, users.username, users.achievement, users.avatar
                 FROM algorithms
                 JOIN users ON algorithms.users_id = users.id
                 ORDER BY algorithms.score;"""
@@ -109,7 +99,7 @@ def change_db_users(email, *args):
             if field == 'password':
                 value = hash_password(value)
             query = f"""UPDATE users 
-                SET {i[0]} = '{i[1]}'
+                SET {field} = '{value}'
                 WHERE email = '{email}';"""
             cursor.execute(query)
         connection.commit()
@@ -134,7 +124,7 @@ def users_from_data_to_dct(data):
         records.append({'id': i[0],
                  'email': i[1],
                 'password': i[2],
-                'nickname': i[3],
+                'username': i[3],
                 'achievement': i[4],
                 'avatar': i[5],
                 'fund_id': i[6],

@@ -13,6 +13,10 @@ from db_connection import (
 )
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv  # Для загрузки переменных из .env
+
+load_dotenv()  # Загружает переменные из .env
 
 # Создаем экземпляр приложения FastAPI
 app = FastAPI()
@@ -30,7 +34,7 @@ app.add_middleware(
 )
 
 # Конфигурация безопасности
-SECRET_KEY = "your-secret-key-here"  # В реальном проекте используйте переменные окружения
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 LOGIN_ATTEMPTS_LIMIT = 5
@@ -70,9 +74,9 @@ def update_users():
     users = get_dict_users()
 
 
-def check_nickname(nickname):
+def is_username_exists(username):
     for i in users:
-        if nickname == i['nickname']:
+        if username == i['username']:
             return True
     return False
 
@@ -100,11 +104,11 @@ class RegisterRequest(BaseModel):
     Поля:
     - email: Email пользователя (валидируется как EmailStr)
     - password: Пароль пользователя
-    - nickname: Никнейм пользователя
+    - username: Никнейм пользователя
     """
     email: EmailStr
     password: str
-    nickname: str
+    username: str
 
 
 class VerifyRequest(BaseModel):
@@ -225,7 +229,7 @@ class ErrorCodes:
     USER_NOT_FOUND = "user_not_found"  # Пользователь не найден
     INVALID_CREDENTIALS = "invalid_credentials"  # Неверные учетные данные
     USER_EXISTS = "user_exists"  # Пользователь уже существует
-    NICKNAME_EXISTS = 'nickname_exist'  # Этот ник уже занят
+    USERNAME_EXISTS = 'username_exist'  # Этот ник уже занят
     INVALID_VERIFICATION_CODE = "invalid_verification_code"  # Неверный код верификации
     ACCOUNT_NOT_VERIFIED = "account_not_verified"  # Аккаунт не верифицирован
     PASSWORD_CHANGE_SUCCESS = "password_change_success"  # Пароль успешно изменен
@@ -324,18 +328,19 @@ def register(data: RegisterRequest):
             detail={"code": ErrorCodes.USER_EXISTS}
         )
 
-    if check_nickname(data.nickname):
+    if is_username_exists(data.username):
         # Если этот ник уже занят, возвращаем ошибку 400
         raise HTTPException(
             status_code=400,
-            detail={"code": ErrorCodes.NICKNAME_EXISTS}
+            detail={"code": ErrorCodes.USERNAME_EXISTS}
         )
 
     # Генерируем код верификации
     verification_code = generate_verification_code()
 
     # Сохраняем данные пользователя в "базу данных"
-    trace_back = save_user(data.email, data.password, data.nickname, False, verification_code)
+    hashed_password = hash_password(data.password)
+    trace_back = save_user(data.email, hashed_password, data.username, False, verification_code)
     if trace_back != 'success':
         raise HTTPException(
             # справить код ошибки

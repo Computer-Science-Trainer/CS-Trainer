@@ -21,3 +21,6 @@ __pycache__/
 
 # SSL certificates
 *.pem
+
+# env file with secret_key
+.env
