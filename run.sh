@@ -39,6 +39,9 @@ fi
 VENV_DIR="venv"
 PID_FILE="server.pid"
 LOG_FILE="server.log"
+SSL_CERT_FILE="/etc/letsencrypt/live/cs-trainer.ru/fullchain.pem"
+SSL_KEY_FILE="/etc/letsencrypt/live/cs-trainer.ru/privkey.pem"
+SSL_PORT=443
 
 if [ ! -d "${VENV_DIR}" ]; then
     python3 -m venv "${VENV_DIR}"
@@ -78,8 +81,14 @@ stop_server() {
 
 stop_server
 
-echo "Starting Uvicorn server..."
-nohup uvicorn main:app --host 0.0.0.0 --port 8000 > "${LOG_FILE}" 2>&1 &
+if [ ! -f "${SSL_CERT_FILE}" ] || [ ! -f "${SSL_KEY_FILE}" ]; then
+    echo "Error: SSL certificate or key file not found!"
+    exit 1
+fi
+
+echo "Starting Uvicorn server with SSL..."
+
+sudo -E env PATH=$PATH:${VENV_DIR}/bin nohup uvicorn main:app --host 0.0.0.0 --port ${SSL_PORT} --ssl-keyfile "${SSL_KEY_FILE}" --ssl-certfile "${SSL_CERT_FILE}" > "${LOG_FILE}" 2>&1 &
 echo $! > "${PID_FILE}"
 
 sleep 3
