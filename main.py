@@ -175,7 +175,7 @@ def login(data: LoginRequest):
     Проверяет email, пароль и статус верификации пользователя.
     """
     user = user_information(data.email)
-    if user == 'not_found':
+    if not user:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
@@ -219,7 +219,7 @@ def register(data: RegisterRequest):
     Создает нового пользователя и отправляет код верификации.
     """
     user = user_information(data.email)
-    if user != 'not_found':
+    if user:
         # Если пользователь уже существует, возвращаем ошибку 400
         raise HTTPException(
             status_code=400,
@@ -255,7 +255,7 @@ def verify(data: VerifyRequest):
     Проверяет код верификации и активирует аккаунт.
     """
     user = user_information(data.email)
-    if user == 'not_found':
+    if not user:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
@@ -290,7 +290,7 @@ def recover(data: RecoverRequest):
     Отправляет код восстановления на email.
     """
     user = user_information(data.email)
-    if user == 'not_found':
+    if not user:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
@@ -323,7 +323,7 @@ def recover_verify(data: RecoverVerifyRequest):
     Обрабатывает запрос на проверку кода восстановления.
     """
     user = user_information(data.email)
-    if user == 'not_found':
+    if not user:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
@@ -354,7 +354,7 @@ def change_password(data: ChangePasswordRequest):
     Проверяет код восстановления и обновляет пароль.
     """
     user = user_information(data.email)
-    if user == 'not_found':
+    if not user:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,
@@ -398,7 +398,7 @@ def resend_code(data: ResendCodeRequest):
     Генерирует новый код и отправляет его на email.
     """
     user = user_information(data.email)
-    if user == 'not_found':
+    if not user:
         # Если пользователь не найден, возвращаем ошибку 404
         raise HTTPException(
             status_code=404,

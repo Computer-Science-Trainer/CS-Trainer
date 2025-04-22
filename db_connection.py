@@ -10,7 +10,7 @@ def get_leaderboard(number_of_users=10):
     fundamentals = get_fundamentals_sort()
     algorithms = get_algorithms_sort()
     result = dict()
-    if number < 200:
+    if number < 100:
         result['fundamentals'] = fundamentals
         result['algorithms'] = algorithms
     else:
@@ -21,29 +21,40 @@ def get_leaderboard(number_of_users=10):
 
 def save_user(email, password, username, verified, verification_code):
     try:
-        query = f"""insert users(email, password, username, achievement, avatar, verified, verification_code)
-            values ('{email}', '{password}', '{username}', '0', '0', {verified}, '{verification_code}')"""
-
-        cursor.execute(query)
+        user_query = """
+            INSERT INTO users(email, password, username, achievement, avatar, verified, verification_code)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(user_query, (email, password, username, '0', '0', verified, verification_code))
         connection.commit()
+
         user = user_information(email)
+        if user == 'not_found':
+            return 'Ошибка: пользователь не создан'
+
         current_time = time.strftime("%Y-%m-%d %H:%M:%S")
 
-        query = f"""INSERT INTO fundamentals(user_id, testsPassed, totalTests, lastActivity)
-            VALUES ('{user['id']}', 0, 0, '{current_time}')"""
-        cursor.execute(query)
-        connection.commit()
-        query = f"""INSERT INTO algorithms(user_id, testsPassed, totalTests, lastActivity)
-            VALUES ('{user['id']}', 0, 0, '{current_time}')"""
-        cursor.execute(query)
+        fundamentals_query = """
+            INSERT INTO fundamentals(user_id, testsPassed, totalTests, lastActivity)
+            VALUES (%s, %s, %s, %s)
+        """
+        cursor.execute(fundamentals_query, (user['id'], 0, 0, current_time))
+
+        algorithms_query = """
+            INSERT INTO algorithms(user_id, testsPassed, totalTests, lastActivity)
+            VALUES (%s, %s, %s, %s)
+        """
+        cursor.execute(algorithms_query, (user['id'], 0, 0, current_time))
         connection.commit()
         return 'success'
+
     except pymysql.MySQLError as e:
+        connection.rollback()
         return f"Ошибка подключения: {e}"
 
 
 def get_fundamentals_sort():
-    query = f"""SELECT fundamentals.*, users.username, users.achievement, users.avatar
+    query = """SELECT fundamentals.*, users.username, users.achievement, users.avatar
                 FROM fundamentals
                 JOIN users ON fundamentals.user_id = users.id
                 ORDER BY fundamentals.score"""
@@ -54,7 +65,7 @@ def get_fundamentals_sort():
 
 
 def get_algorithms_sort():
-    query = f"""SELECT algorithms.*, users.username, users.achievement, users.avatar
+    query = """SELECT algorithms.*, users.username, users.achievement, users.avatar
                 FROM algorithms
                 JOIN users ON algorithms.user_id = users.id
                 ORDER BY algorithms.score;"""
@@ -66,23 +77,26 @@ def get_algorithms_sort():
 
 def change_db_users(email, *args):
     try:
-        for i in args:
-            query = f"""UPDATE users 
-                SET {i[0]} = '{i[1]}'
-                WHERE email = '{email}';"""
-            cursor.execute(query)
+        for column, new_value in args:
+            query = "UPDATE users SET %s = %s WHERE email = %s"
+            valid_columns = ['password', 'nickname', 'achievement',
+                             'avatar', 'verified', 'verification_code']
+            if column not in valid_columns:
+                return f"Ошибка: недопустимое имя столбца {column}"
+            cursor.execute(query, (column, new_value, email))
         connection.commit()
         return 'success'
     except pymysql.MySQLError as e:
+        connection.rollback()
         return f"Ошибка подключения: {e}"
 
 
 def user_information(email):
-    cursor.execute(f"SELECT * FROM users WHERE email = '{email}';")
+    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
 
     if user is None:
-        return 'not_found'
+        return None
     else:
         dct = {'id': user[0],
                 'email': user[1],
@@ -95,7 +109,7 @@ def user_information(email):
                 }
         return dct
 
-
+#delete
 def users_from_data_to_dct(data):
     records = dict()
     for i in data:
