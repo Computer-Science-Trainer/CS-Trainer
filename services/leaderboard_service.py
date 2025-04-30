@@ -1,8 +1,8 @@
 import json
 from database import execute, redis_client
 
-# Leaderboard logic with caching
 
+# Leaderboard logic with caching
 def get_leaderboard(number_of_users: int = 10) -> dict:
     cache_key = f"leaderboard:{number_of_users}"
     cached = redis_client.get(cache_key)

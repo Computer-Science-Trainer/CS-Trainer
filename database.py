@@ -20,6 +20,7 @@ pool = PooledDB(
 
 redis_client = redis.Redis()
 
+
 def execute(query: str, params: tuple = None, fetchone: bool = False):
     conn = pool.connection()
     cur = conn.cursor()

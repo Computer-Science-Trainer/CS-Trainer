@@ -3,14 +3,16 @@ from pydantic import BaseModel
 from services.user_service import get_user_by_email
 from security import decode_access_token
 from jwt import ExpiredSignatureError, InvalidTokenError
- 
+
 router = APIRouter()
+
 
 # Output model for /api/me
 class UserOut(BaseModel):
     id: int
     email: str
     username: str
+
 
 @router.get("/me", response_model=UserOut)
 def me(authorization: str = Header(None, alias="Authorization")):
@@ -34,5 +36,5 @@ def me(authorization: str = Header(None, alias="Authorization")):
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
 
-    return UserOut(id=user["id"], email=user["email"], username=user["username"])
-
+    return UserOut(id=user["id"], email=user["email"],
+                   username=user["username"])

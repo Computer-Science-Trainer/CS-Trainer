@@ -1,14 +1,23 @@
 import time
 from database import execute
 
-# CRUD operations for users
 
-def save_user(email: str, password: str, username: str, verified: bool, verification_code: str) -> str:
+# CRUD operations for users
+def save_user(email: str, password: str, username: str,
+              verified: bool, verification_code: str) -> str:
     insert_user = """
         INSERT INTO users(email, password, username, achievement, avatar, verified, verification_code)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
     """
-    execute(insert_user, (email, password, username, '0', '0', verified, verification_code))
+    execute(
+        insert_user,
+        (email,
+         password,
+         username,
+         '0',
+         '0',
+         verified,
+         verification_code))
     user = get_user_by_email(email)
     if not user:
         return 'Error: user not created'
@@ -31,11 +40,18 @@ def save_user(email: str, password: str, username: str, verified: bool, verifica
 
 
 def change_db_users(email: str, *updates: tuple[str, any]) -> str:
-    valid = ['password', 'username', 'achievement', 'avatar', 'verified', 'verification_code']
+    valid = [
+        'password',
+        'username',
+        'achievement',
+        'avatar',
+        'verified',
+        'verification_code']
     for column, value in updates:
         if column not in valid:
             return f"Error: invalid column {column}"
-        execute(f"UPDATE users SET {column} = %s WHERE email = %s", (value, email))
+        execute(
+            f"UPDATE users SET {column} = %s WHERE email = %s", (value, email))
     return 'success'
 
 
@@ -49,5 +65,13 @@ def get_user_by_email(email: str) -> dict | None:
     )
     if not row:
         return None
-    keys = ['id','email','password','username','achievement','avatar','verified','verification_code']
+    keys = [
+        'id',
+        'email',
+        'password',
+        'username',
+        'achievement',
+        'avatar',
+        'verified',
+        'verification_code']
     return dict(zip(keys, row))

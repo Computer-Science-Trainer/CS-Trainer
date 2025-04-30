@@ -28,12 +28,14 @@ oauth.register(
 # Frontend URL to redirect to after OAuth
 auth_frontend = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+
 @router.get("/{provider}/login")
 async def oauth_login(provider: str, request: Request):
     if provider not in ("github", "google"):
         raise HTTPException(status_code=404, detail="Unknown provider")
     redirect_uri = request.url_for("oauth_callback", provider=provider)
     return await oauth.create_client(provider).authorize_redirect(request, redirect_uri)
+
 
 @router.get("/{provider}/callback")
 async def oauth_callback(provider: str, request: Request):
@@ -47,7 +49,9 @@ async def oauth_callback(provider: str, request: Request):
         email = profile.get("email")
         if not email:
             emails = await client.get("user/emails", token=token)
-            primary = next((e for e in emails.json() if e.get("primary")), emails.json()[0])
+            primary = next(
+                (e for e in emails.json() if e.get("primary")),
+                emails.json()[0])
             email = primary.get("email")
         username = profile.get("login")
     else:

@@ -11,7 +11,11 @@ from routers.oauth_router import router as oauth_router
 app = FastAPI()
 
 # Add session middleware for OAuthlib
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET_KEY", "supersecretkey"))
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv(
+        "SESSION_SECRET_KEY",
+        "supersecretkey"))
 origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
