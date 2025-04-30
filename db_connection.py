@@ -1,140 +1,127 @@
 import pymysql
 import json
 import time
+from dbutils.pooled_db import PooledDB
+import redis
+
+
+with open('database_user.json') as file:
+    file_json_data = json.load(file)
+
+pool = PooledDB(
+    creator=pymysql,
+    host=file_json_data['host'],
+    user=file_json_data['user'],
+    password=file_json_data['password'],
+    database=file_json_data['database'],
+    autocommit=True,
+    mincached=5,
+    maxcached=20,
+)
+
+redis_client = redis.Redis()
+
+
+def _execute(query, params=None, fetchone=False):
+    conn = pool.connection()
+    cursor = conn.cursor()
+    cursor.execute(query, params or ())
+    result = cursor.fetchone() if fetchone else cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return result
 
 
 def get_leaderboard(number_of_users=10):
-    query = 'SELECT COUNT(*) FROM users;'
-    cursor.execute(query)
-    number = cursor.fetchone()[0]
-    fundamentals = get_fundamentals_sort()
-    algorithms = get_algorithms_sort()
-    result = dict()
-    if number < 100:
-        result['fundamentals'] = fundamentals
-        result['algorithms'] = algorithms
-    else:
-        result['fundamentals'] = fundamentals[:100]
-        result['algorithms'] = algorithms[:100]
+    cache_key = f"leaderboard:{number_of_users}"
+
+    fund_query = """
+        SELECT f.id, f.user_id, f.score, f.testsPassed, f.totalTests, f.lastActivity,
+               u.username, u.achievement, u.avatar
+        FROM fundamentals AS f
+        JOIN users AS u ON f.user_id = u.id
+        ORDER BY f.score DESC
+        LIMIT %s
+    """
+    alg_query = """
+        SELECT a.id, a.user_id, a.score, a.testsPassed, a.totalTests, a.lastActivity,
+               u.username, u.achievement, u.avatar
+        FROM algorithms AS a
+        JOIN users AS u ON a.user_id = u.id
+        ORDER BY a.score DESC
+        LIMIT %s
+    """
+
+    fundamentals_data = _execute(fund_query, (number_of_users,))
+    algorithms_data = _execute(alg_query, (number_of_users,))
+    fundamentals = [
+        {
+            'id': row[0],
+            'user_id': row[1],
+            'score': row[2],
+            'testsPassed': row[3],
+            'totalTests': row[4],
+            'lastActivity': row[5],
+            'username': row[6],
+        }
+        for row in fundamentals_data
+    ]
+    algorithms = [
+        {
+            'id': row[0],
+            'user_id': row[1],
+            'score': row[2],
+            'testsPassed': row[3],
+            'totalTests': row[4],
+            'lastActivity': row[5],
+            'username': row[6],
+        }
+        for row in algorithms_data
+    ]
+    result = {
+        'fundamentals': fundamentals,
+        'algorithms': algorithms
+    }
+    redis_client.setex(cache_key, 60, json.dumps(result, default=str))
     return result
 
 
 def save_user(email, password, username, verified, verification_code):
-    try:
-        user_query = """
-            INSERT INTO users(email, password, username, achievement, avatar, verified, verification_code)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(user_query, (email, password, username, '0', '0', verified, verification_code))
-        connection.commit()
-
-        user = user_information(email)
-        if user == 'not_found':
-            return 'Ошибка: пользователь не создан'
-
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-
-        fundamentals_query = """
-            INSERT INTO fundamentals(user_id, testsPassed, totalTests, lastActivity)
-            VALUES (%s, %s, %s, %s)
-        """
-        cursor.execute(fundamentals_query, (user['id'], 0, 0, current_time))
-
-        algorithms_query = """
-            INSERT INTO algorithms(user_id, testsPassed, totalTests, lastActivity)
-            VALUES (%s, %s, %s, %s)
-        """
-        cursor.execute(algorithms_query, (user['id'], 0, 0, current_time))
-        connection.commit()
-        return 'success'
-
-    except pymysql.MySQLError as e:
-        connection.rollback()
-        return f"Ошибка подключения: {e}"
-
-
-def get_fundamentals_sort():
-    query = """SELECT fundamentals.*, users.username, users.achievement, users.avatar
-                FROM fundamentals
-                JOIN users ON fundamentals.user_id = users.id
-                ORDER BY fundamentals.score"""
-    cursor.execute(query)
-    data = cursor.fetchall()
-    records = fund_alg_from_data_to_dct(data)
-    return records
-
-
-def get_algorithms_sort():
-    query = """SELECT algorithms.*, users.username, users.achievement, users.avatar
-                FROM algorithms
-                JOIN users ON algorithms.user_id = users.id
-                ORDER BY algorithms.score;"""
-    cursor.execute(query)
-    data = cursor.fetchall()
-    records = fund_alg_from_data_to_dct(data)
-    return records
-
+    user_query = """
+        INSERT INTO users(email, password, username, achievement, avatar, verified, verification_code)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+    _execute(user_query, (email, password, username, '0', '0', verified, verification_code))
+    user = user_information(email)
+    if user is None:
+        return 'Error: the user was not created'
+    current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+    f_query = """
+        INSERT INTO fundamentals(user_id, testsPassed, totalTests, lastActivity)
+        VALUES (%s, %s, %s, %s)
+    """
+    a_query = """
+        INSERT INTO algorithms(user_id, testsPassed, totalTests, lastActivity)
+        VALUES (%s, %s, %s, %s)
+    """
+    _execute(f_query, (user['id'], 0, 0, current_time))
+    _execute(a_query, (user['id'], 0, 0, current_time))
+    return 'success'
 
 def change_db_users(email, *args):
-    try:
-        for column, new_value in args:
-            query = "UPDATE users SET %s = %s WHERE email = %s"
-            valid_columns = ['password', 'nickname', 'achievement',
-                             'avatar', 'verified', 'verification_code']
-            if column not in valid_columns:
-                return f"Ошибка: недопустимое имя столбца {column}"
-            cursor.execute(query, (column, new_value, email))
-        connection.commit()
-        return 'success'
-    except pymysql.MySQLError as e:
-        connection.rollback()
-        return f"Ошибка подключения: {e}"
+    valid_columns = ['password', 'username', 'achievement', 'avatar', 'verified', 'verification_code']
+    for column, new_value in args:
+        if column not in valid_columns:
+            return f"Error: Invalid column name {column}"
+        query = f"UPDATE users SET {column} = %s WHERE email = %s"
+        _execute(query, (new_value, email))
+    return 'success'
 
 
 def user_information(email):
-    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-    user = cursor.fetchone()
-
-    if user is None:
+    query = "SELECT id, email, password, username, achievement, avatar, verified, verification_code FROM users WHERE email = %s"
+    row = _execute(query, (email,), fetchone=True)
+    if not row:
         return None
-    else:
-        dct = {'id': user[0],
-                'email': user[1],
-                'password': user[2],
-                'nickname': user[3],
-                'achievement': user[4],
-                'avatar': user[5],
-                'verified': user[6],
-                'verification_code': user[7]
-                }
-        return dct
-
-
-def fund_alg_from_data_to_dct(data):
-    records = []
-    for i in data:
-        records.append({
-            'id':          i[0],
-            'user_id':     i[1],
-            'score':       i[2],
-            'testPassed':  i[3],
-            'totalTests':  i[4],
-            'lastActivity':i[5],
-        })
-    return records
-
-with open('database_user.json') as file:
-    file_json_data = json.load(file)
-try:
-    connection = pymysql.connect(
-        host=file_json_data['host'],
-        user=file_json_data['user'],
-        password=file_json_data['password'],
-        database=file_json_data['database']
-    )
-    cursor = connection.cursor()
-except pymysql.MySQLError as e:
-    print(f"Ошибка подключения: {e}")
-# finally:
-#     if 'connection' in locals():
-#         connection.close()
+    keys = ['id', 'email', 'password', 'username', 'achievement', 'avatar', 'verified', 'verification_code']
+    return dict(zip(keys, row))
