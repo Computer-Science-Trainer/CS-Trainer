@@ -8,7 +8,6 @@ from security import create_access_token
 router = APIRouter()
 
 # Token and code utilities
-
 def generate_verification_code() -> str:
     return f"{random.randint(0, 999999):06d}"
 
