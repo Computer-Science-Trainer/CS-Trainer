@@ -49,4 +49,5 @@ jobs:
             echo "Navigating to the repository directory"
             cd "${DEPLOY_PATH}"
             echo "Running the script"
+            source env.sh
             ./run.sh

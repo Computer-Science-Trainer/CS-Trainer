@@ -13,9 +13,8 @@ app = FastAPI()
 # Add session middleware for OAuthlib
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv(
-        "SESSION_SECRET_KEY",
-        "supersecretkey"))
+    secret_key=os.getenv("SESSION_SECRET_KEY")
+    )
 origins = ["*"]
 app.add_middleware(
     CORSMiddleware,

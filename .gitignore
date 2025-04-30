@@ -21,3 +21,6 @@ __pycache__/
 
 # SSL certificates
 *.pem
+
+# Environment variables
+env.sh
