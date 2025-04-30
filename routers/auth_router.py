@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr
 from enum import Enum
 import random
 from services.user_service import save_user, change_db_users, get_user_by_email
+from security import create_access_token
 
 router = APIRouter()
 
@@ -10,9 +11,6 @@ router = APIRouter()
 
 def generate_verification_code() -> str:
     return f"{random.randint(0, 999999):06d}"
-
-def generate_token(email: str) -> str:
-    return f"fake-token-for-{email}"
 
 # Error code constants
 class ErrorCodes:
@@ -76,7 +74,9 @@ def login(data: LoginRequest):
             raise HTTPException(status_code=500, detail={'code': ErrorCodes.SAVING_FAILED})
         print(f'Verification code for {data.email}: {code}')
         raise HTTPException(status_code=403, detail={'code': ErrorCodes.ACCOUNT_NOT_VERIFIED})
-    return {'token': generate_token(data.email)}
+    access_token = create_access_token({'sub': data.email, 'user_id': user['id']})
+    print(access_token)
+    return {'access_token': access_token, 'token_type': 'bearer'}
 
 @router.post('/register')
 def register(data: RegisterRequest):
@@ -97,7 +97,8 @@ def verify(data: VerifyRequest):
         raise HTTPException(status_code=400, detail={'code': ErrorCodes.INVALID_VERIFICATION_CODE})
     if change_db_users(data.email, ('verified', 1)) != 'success':
         raise HTTPException(status_code=500, detail={'code': ErrorCodes.SAVING_FAILED})
-    return {'token': generate_token(data.email), 'message': {'code': ErrorCodes.VERIFICATION_SUCCESS}}
+    access_token = create_access_token({'sub': data.email, 'user_id': user['id']})
+    return {'access_token': access_token, 'token_type': 'bearer', 'message': {'code': ErrorCodes.VERIFICATION_SUCCESS}}
 
 @router.post('/recover')
 def recover(data: RecoverRequest):
@@ -128,7 +129,8 @@ def change_password(data: ChangePasswordRequest):
         raise HTTPException(status_code=400, detail={'code': ErrorCodes.INVALID_VERIFICATION_CODE})
     if change_db_users(data.email, ('password', data.password), ('verified', 1)) != 'success':
         raise HTTPException(status_code=500, detail={'code': ErrorCodes.SAVING_FAILED})
-    return {'token': generate_token(data.email), 'message': {'code': ErrorCodes.PASSWORD_CHANGE_SUCCESS}}
+    access_token = create_access_token({'sub': data.email, 'user_id': user['id']})
+    return {'access_token': access_token, 'token_type': 'bearer', 'message': {'code': ErrorCodes.PASSWORD_CHANGE_SUCCESS}}
 
 @router.post('/verify/resend')
 def resend_code(data: ResendCodeRequest):
