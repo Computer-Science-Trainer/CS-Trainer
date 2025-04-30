@@ -6,3 +6,4 @@ PyJWT
 authlib
 httpx
 itsdangerous
+dbutils
