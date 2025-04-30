@@ -41,6 +41,11 @@ async def oauth_login(provider: str, request: Request):
 async def oauth_callback(provider: str, request: Request):
     if provider not in ("github", "google"):
         raise HTTPException(status_code=404, detail="Unknown provider")
+
+    if "error" in request.query_params:
+        error_description = request.query_params.get("error_description", "Access denied")
+        return RedirectResponse(f"{auth_frontend}/callback?error={error_description}")
+
     client = oauth.create_client(provider)
     token = await client.authorize_access_token(request)
     if provider == "github":
@@ -68,6 +73,5 @@ async def oauth_callback(provider: str, request: Request):
         save_user(email, "", username, True, "")
         user = get_user_by_email(email)
     access_token = create_access_token({"sub": email, "user_id": user["id"]})
-    redirect_url = f"{auth_frontend}?token={access_token}"
     redirect_url = f"{auth_frontend}/callback?token={access_token}"
     return RedirectResponse(redirect_url)
