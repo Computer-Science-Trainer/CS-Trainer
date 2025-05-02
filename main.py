@@ -14,7 +14,7 @@ app = FastAPI()
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY")
-    )
+)
 origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
@@ -30,7 +30,6 @@ app.include_router(user_router, prefix="/api")
 app.include_router(leaderboard_router, prefix="/api")
 
 
-# Точка входа в приложение
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

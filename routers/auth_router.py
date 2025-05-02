@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from enum import Enum
 import random
 from services.user_service import save_user, change_db_users, get_user_by_email
 from security import create_access_token
+from services.achievement_service import check_and_award
 
 router = APIRouter()
 
@@ -72,7 +73,7 @@ class ResendCodeRequest(BaseModel):
 
 # Endpoints
 @router.post('/login')
-def login(data: LoginRequest):
+def login(data: LoginRequest, background_tasks: BackgroundTasks):
     user = get_user_by_email(data.email)
     if not user:
         raise HTTPException(
@@ -95,6 +96,8 @@ def login(data: LoginRequest):
                 'code': ErrorCodes.ACCOUNT_NOT_VERIFIED})
     access_token = create_access_token(
         {'sub': data.email, 'user_id': user['id']})
+    # асинхронно выдаём достижение за первый логин
+    background_tasks.add_task(check_and_award, user['id'], 'login')
     print(access_token)
     return {'access_token': access_token, 'token_type': 'bearer'}
 
@@ -133,6 +136,7 @@ def verify(data: VerifyRequest):
                 'code': ErrorCodes.SAVING_FAILED})
     access_token = create_access_token(
         {'sub': data.email, 'user_id': user['id']})
+    check_and_award(user['id'], event="login")
     return {'access_token': access_token, 'token_type': 'bearer',
             'message': {'code': ErrorCodes.VERIFICATION_SUCCESS}}
 

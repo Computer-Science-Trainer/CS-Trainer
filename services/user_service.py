@@ -75,3 +75,26 @@ def get_user_by_email(email: str) -> dict | None:
         'verified',
         'verification_code']
     return dict(zip(keys, row))
+
+
+def get_user_by_username(username: str) -> dict | None:
+    """
+    Возвращает пользователя по username или None.
+    """
+    row = execute(
+        "SELECT id, email, password, username, achievement, avatar, verified, verification_code"
+        " FROM users WHERE username = %s",
+        (username,), fetchone=True
+    )
+    if not row:
+        return None
+    keys = [
+        'id',
+        'email',
+        'password',
+        'username',
+        'achievement',
+        'avatar',
+        'verified',
+        'verification_code']
+    return dict(zip(keys, row))
