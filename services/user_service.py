@@ -1,5 +1,6 @@
 import time
 from database import execute
+import json
 
 
 # CRUD operations for users
@@ -98,3 +99,48 @@ def get_user_by_username(username: str) -> dict | None:
         'verified',
         'verification_code']
     return dict(zip(keys, row))
+
+
+def save_user_test(user_id: int, test_type: str, section: str,
+                   passed: int, total: int, topics: list[int]) -> None:
+    """Save a test session for a user with type and section"""
+    average = passed / total if total else 0
+    execute(
+        """
+        INSERT INTO tests(type, section, user_id, passed, total, average, topics)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+        (test_type, section, user_id, passed, total, average, json.dumps(topics))
+    )
+
+
+def get_user_tests(user_id: int) -> list[dict]:
+    """Retrieve all test sessions for a user, including topic codes"""
+    rows = execute(
+        "SELECT id, type, section, passed, total, average, topics, created_at"
+        " FROM tests WHERE user_id = %s ORDER BY created_at DESC",
+        (user_id,)
+    )
+    result = []
+    for test_id, test_type, sect, passed, total, average, topics_json, created_at in rows:
+        topic_ids = json.loads(topics_json)
+        if topic_ids:
+            placeholders = ",".join(["%s"] * len(topic_ids))
+            rows2 = execute(
+                f"SELECT label FROM topics WHERE id IN ({placeholders})",
+                tuple(topic_ids)
+            )
+            topic_codes = [str(r[0]) for r in rows2]
+        else:
+            topic_codes = []
+        result.append({
+            "id": test_id,
+            "type": test_type,
+            "section": sect,
+            "passed": passed,
+            "total": total,
+            "average": average,
+            "topics": topic_codes,
+            "created_at": created_at
+        })
+    return result

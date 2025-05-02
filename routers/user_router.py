@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
-from services.user_service import get_user_by_email, get_user_by_username
+from services.user_service import get_user_by_email, get_user_by_username, get_user_tests
 from security import decode_access_token
 from jwt import ExpiredSignatureError, InvalidTokenError
 from typing import List, Optional
@@ -23,9 +23,20 @@ class AchievementOut(BaseModel):
     unlocked_at: Optional[datetime.datetime] = None
 
 
+class TestOut(BaseModel):
+    id: int
+    type: str
+    section: str
+    passed: int
+    total: int
+    average: float
+    topics: List[str]
+    created_at: datetime.datetime
+
+
 @router.get("/me", response_model=UserOut)
 def me(authorization: str = Header(None, alias="Authorization")):
-    if authorization and authorization.startswith("Bearer "):
+    if (authorization and authorization.startswith("Bearer ")):
         token = authorization.split(" ", 1)[1]
     else:
         raise HTTPException(status_code=401, detail={"code": "missing_token"})
@@ -70,3 +81,11 @@ def user_achievements_by_username(username: str):
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
     return user_achievements_by_id(user['id'])
+
+
+@router.get("/user/{username}/tests", response_model=List[TestOut])
+def user_tests_by_username(username: str):
+    user = get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail={"code": "user_not_found"})
+    return get_user_tests(user['id'])
