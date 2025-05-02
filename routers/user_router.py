@@ -34,6 +34,12 @@ class TestOut(BaseModel):
     created_at: datetime.datetime
 
 
+class StatsOut(BaseModel):
+    passed: int
+    total: int
+    average: float
+
+
 @router.get("/me", response_model=UserOut)
 def me(authorization: str = Header(None, alias="Authorization")):
     if (authorization and authorization.startswith("Bearer ")):
@@ -89,3 +95,17 @@ def user_tests_by_username(username: str):
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
     return get_user_tests(user['id'])
+
+
+@router.get("/user/{username}/stats", response_model=StatsOut)
+def user_stats_by_username(username: str):
+    user = get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail={"code": "user_not_found"})
+    tests = get_user_tests(user['id'])
+    if not tests:
+        return StatsOut(passed=0, total=0, average=0.0)
+    passed = sum(t['passed'] for t in tests)
+    total = sum(t['total'] for t in tests)
+    average = (sum(t['average'] for t in tests) / len(tests)) if tests else 0.0
+    return StatsOut(passed=passed, total=total, average=average)
