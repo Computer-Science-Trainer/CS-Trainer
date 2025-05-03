@@ -107,22 +107,22 @@ def save_user_test(user_id: int, test_type: str, section: str,
     average = passed / total if total else 0
     execute(
         """
-        INSERT INTO tests(type, section, user_id, passed, total, average, topics)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO tests(type, section, user_id, passed, total, average, earned_score, topics)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """,
-        (test_type, section, user_id, passed, total, average, json.dumps(topics))
+        (test_type, section, user_id, passed, total, average, passed, json.dumps(topics))
     )
 
 
 def get_user_tests(user_id: int) -> list[dict]:
     """Retrieve all test sessions for a user, including topic codes"""
     rows = execute(
-        "SELECT id, type, section, passed, total, average, topics, created_at"
+        "SELECT id, type, section, passed, total, average, earned_score, topics, created_at"
         " FROM tests WHERE user_id = %s ORDER BY created_at DESC",
         (user_id,)
     )
     result = []
-    for test_id, test_type, sect, passed, total, average, topics_json, created_at in rows:
+    for test_id, test_type, sect, passed, total, average, earned_score, topics_json, created_at in rows:
         topic_ids = json.loads(topics_json)
         if topic_ids:
             placeholders = ",".join(["%s"] * len(topic_ids))
@@ -140,7 +140,22 @@ def get_user_tests(user_id: int) -> list[dict]:
             "passed": passed,
             "total": total,
             "average": average,
+            "earned_score": earned_score,
             "topics": topic_codes,
             "created_at": created_at
         })
     return result
+
+
+def get_user_scores(user_id: int) -> dict[str, int]:
+    fund_row = execute(
+        "SELECT score FROM fundamentals WHERE user_id = %s",
+        (user_id,), fetchone=True
+    )
+    fund_score = fund_row[0] if fund_row else 0
+    alg_row = execute(
+        "SELECT score FROM algorithms WHERE user_id = %s",
+        (user_id,), fetchone=True
+    )
+    alg_score = alg_row[0] if alg_row else 0
+    return {"fundamentals": fund_score, "algorithms": alg_score}

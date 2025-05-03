@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from services.user_service import get_user_by_email, get_user_by_username, get_user_tests
+from services.user_service import get_user_scores
 from security import decode_access_token
 from jwt import ExpiredSignatureError, InvalidTokenError
 from typing import List, Optional
@@ -30,6 +31,7 @@ class TestOut(BaseModel):
     passed: int
     total: int
     average: float
+    earned_score: int
     topics: List[str]
     created_at: datetime.datetime
 
@@ -38,6 +40,8 @@ class StatsOut(BaseModel):
     passed: int
     total: int
     average: float
+    fundamentals: int
+    algorithms: int
 
 
 @router.get("/me", response_model=UserOut)
@@ -102,10 +106,16 @@ def user_stats_by_username(username: str):
     user = get_user_by_username(username)
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
+    # fetch test sessions and current scores
     tests = get_user_tests(user['id'])
+    scores = get_user_scores(user['id'])
     if not tests:
-        return StatsOut(passed=0, total=0, average=0.0)
+        return StatsOut(passed=0, total=0, average=0.0,
+                        fundamentals=scores['fundamentals'],
+                        algorithms=scores['algorithms'])
     passed = sum(t['passed'] for t in tests)
     total = sum(t['total'] for t in tests)
     average = (sum(t['average'] for t in tests) / len(tests)) if tests else 0.0
-    return StatsOut(passed=passed, total=total, average=average)
+    return StatsOut(passed=passed, total=total, average=average,
+                    fundamentals=scores['fundamentals'],
+                    algorithms=scores['algorithms'])
