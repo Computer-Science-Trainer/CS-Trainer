@@ -1,22 +1,22 @@
 import time
 from database import execute
 import json
+from security import hash_password
 
 
 # CRUD operations for users
 def save_user(email: str, password: str, username: str,
               verified: bool, verification_code: str) -> str:
+    password = hash_password(password)
     insert_user = """
-        INSERT INTO users(email, password, username, achievement, avatar, verified, verification_code)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO users(email, password, username, verified, verification_code)
+        VALUES (%s, %s, %s, %s, %s)
     """
     execute(
         insert_user,
         (email,
          password,
          username,
-         '0',
-         '0',
          verified,
          verification_code))
     user = get_user_by_email(email)
@@ -25,19 +25,19 @@ def save_user(email: str, password: str, username: str,
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     execute(
         """
-        INSERT INTO fundamentals(user_id, testsPassed, totalTests, lastActivity)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO fundamentals(user_id, score, testsPassed, totalTests, lastActivity)
+        VALUES (%s, %s, %s, %s, %s)
         """,
-        (user['id'], 0, 0, now)
+        (user['id'], 0, 0, 0, now)
     )
     execute(
         """
-        INSERT INTO algorithms(user_id, testsPassed, totalTests, lastActivity)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO algorithms(user_id, score, testsPassed, totalTests, lastActivity)
+        VALUES (%s, %s, %s, %s, %s)
         """,
-        (user['id'], 0, 0, now)
+        (user['id'], 0, 0, 0, now)
     )
-    return 'success'
+    return 0
 
 
 def change_db_users(email: str, *updates: tuple[str, any]) -> str:
@@ -57,6 +57,8 @@ def change_db_users(email: str, *updates: tuple[str, any]) -> str:
     for column, value in updates:
         if column not in valid:
             return f"Error: invalid column {column}"
+        if column == 'password':
+            value = hash_password(value)
         execute(
             f"UPDATE users SET {column} = %s WHERE email = %s", (value, email))
     return 'success'
@@ -153,10 +155,23 @@ def get_user_scores(user_id: int) -> dict[str, int]:
         "SELECT score FROM fundamentals WHERE user_id = %s",
         (user_id,), fetchone=True
     )
-    fund_score = fund_row[0] if fund_row else 0
+    fund_score = fund_row[0] if fund_row and fund_row[0] is not None else 0
     alg_row = execute(
         "SELECT score FROM algorithms WHERE user_id = %s",
         (user_id,), fetchone=True
     )
-    alg_score = alg_row[0] if alg_row else 0
+    alg_score = alg_row[0] if alg_row and alg_row[0] is not None else 0
     return {"fundamentals": fund_score, "algorithms": alg_score}
+
+
+def delete_user_by_id(user_id: int) -> bool:
+    try:
+        execute("DELETE FROM user_achievements WHERE user_id = %s", (user_id,))
+        execute("DELETE FROM tests WHERE user_id = %s", (user_id,))
+        execute("DELETE FROM fundamentals WHERE user_id = %s", (user_id,))
+        execute("DELETE FROM algorithms WHERE user_id = %s", (user_id,))
+        execute("DELETE FROM users WHERE id = %s", (user_id,))
+        return True
+    except Exception as e:
+        print(f"Error deleting user {user_id}: {e}")
+        return False

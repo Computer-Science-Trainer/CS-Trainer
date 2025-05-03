@@ -2,6 +2,7 @@ from typing import Dict, Any
 from database import execute, redis_client
 from services.achievement_definitions import ACHIEVEMENT_DEFINITIONS
 import json
+from pymysql.err import IntegrityError
 
 
 def sync_definitions() -> None:
@@ -42,11 +43,14 @@ def award_achievement(user_id: int, code: str) -> bool:
     )
     if exists:
         return False
-    execute(
-        "INSERT INTO user_achievements(user_id, achievement_id) VALUES (%s, %s)",
-        (user_id, ach_id)
-    )
-    return True
+    try:
+        execute(
+            "INSERT INTO user_achievements(user_id, achievement_id) VALUES (%s, %s)",
+            (user_id, ach_id)
+        )
+        return True
+    except IntegrityError:
+        return False
 
 
 def get_user_achievements(user_id: int) -> list[dict]:
@@ -75,7 +79,7 @@ def get_user_achievements(user_id: int) -> list[dict]:
         if item['unlocked_at'] is not None:
             item['unlocked_at'] = item['unlocked_at'].isoformat()
         cache_list.append(item)
-    redis_client.setex(cache_key, 300, json.dumps(cache_list))
+    redis_client.setex(cache_key, 15, json.dumps(cache_list))
     return result
 
 

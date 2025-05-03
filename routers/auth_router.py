@@ -5,8 +5,8 @@ from enum import Enum
 import random
 import os
 import uuid
-from services.user_service import save_user, change_db_users, get_user_by_email
-from security import create_access_token, decode_access_token
+from services.user_service import save_user, change_db_users, get_user_by_email, delete_user_by_id
+from security import create_access_token, decode_access_token, verify_password
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 MAX_AVATAR_SIZE = 1024 * 300  # 300 KB
@@ -99,7 +99,7 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
         raise HTTPException(
             status_code=404, detail={
                 'code': ErrorCodes.USER_NOT_FOUND})
-    if data.password != user['password']:
+    if not verify_password(data.password, user['password']):
         raise HTTPException(
             status_code=401, detail={
                 'code': ErrorCodes.INVALID_CREDENTIALS})
@@ -123,6 +123,7 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
 
 @router.post('/register')
 def register(data: RegisterRequest):
+    print(data)
     if len(data.username) > MAX_USERNAME_LEN:
         raise HTTPException(
             status_code=400, detail={
@@ -140,8 +141,7 @@ def register(data: RegisterRequest):
             status_code=400, detail={
                 'code': ErrorCodes.PASSWORD_LENGTH_INVALID})
     code = generate_verification_code()
-    if save_user(data.email, data.password,
-                 data.username, False, code) != 'success':
+    if save_user(data.email, data.password, data.username, False, code):
         raise HTTPException(
             status_code=500, detail={
                 'code': ErrorCodes.SAVING_FAILED})
@@ -270,7 +270,7 @@ async def change_password(data: UpdatePasswordRequest,
         raise HTTPException(
             status_code=404, detail={
                 "code": ErrorCodes.USER_NOT_FOUND})
-    if data.oldPassword != user['password']:
+    if not verify_password(data.oldPassword, user['password']):
         raise HTTPException(
             status_code=400, detail={
                 "code": ErrorCodes.INVALID_CREDENTIALS})
@@ -363,3 +363,24 @@ async def update_profile(
             change_db_users(new_email, (col, val))
     new_token = create_access_token({"sub": new_email, "user_id": user_id})
     return {"token": new_token}
+
+
+@router.delete('/delete-account')
+async def delete_account(
+        authorization: str = Header(None, alias="Authorization")):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail={"code": "missing_token"})
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = decode_access_token(token)
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail={"code": "token_expired"})
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail={"code": "invalid_token"})
+    user_id = payload.get('user_id')
+    if not user_id:
+        raise HTTPException(status_code=401, detail={"code": "invalid_token"})
+    deleted = delete_user_by_id(user_id)
+    if not deleted:
+        raise HTTPException(status_code=500, detail={"code": "delete_failed"})
+    return {"message": "account_deleted"}

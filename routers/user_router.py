@@ -129,7 +129,6 @@ def user_stats_by_username(username: str):
     user = get_user_by_username(username)
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
-    # fetch test sessions and current scores
     tests = get_user_tests(user['id'])
     scores = get_user_scores(user['id'])
     if not tests:
