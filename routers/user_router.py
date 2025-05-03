@@ -45,11 +45,12 @@ class StatsOut(BaseModel):
 
 
 class ProfileUserOut(BaseModel):
+    username: str
     avatar: Optional[str] = None
-    website: Optional[str] = None
+    bio: Optional[str] = None
     telegram: Optional[str] = None
     github: Optional[str] = None
-    bio: Optional[str] = None
+    website: Optional[str] = None
 
 
 @router.get('/user/{username}', response_model=ProfileUserOut)
@@ -58,11 +59,12 @@ def get_profile_by_username(username: str):
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
     return {
+        "username": user.get("username"),
         "avatar": user.get("avatar"),
-        "website": user.get("website"),
+        "bio": user.get("bio"),
         "telegram": user.get("telegram"),
         "github": user.get("github"),
-        "bio": user.get("bio")
+        "website": user.get("website"),
     }
 
 
