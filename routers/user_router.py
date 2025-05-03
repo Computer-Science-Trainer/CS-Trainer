@@ -15,11 +15,6 @@ class UserOut(BaseModel):
     id: int
     email: str
     username: str
-    telegram: Optional[str] = None
-    github: Optional[str] = None
-    website: Optional[str] = None
-    bio: Optional[str] = None
-    avatar: Optional[str] = None
 
 
 class AchievementOut(BaseModel):
@@ -49,6 +44,28 @@ class StatsOut(BaseModel):
     algorithms: int
 
 
+class ProfileUserOut(BaseModel):
+    avatar: Optional[str] = None
+    website: Optional[str] = None
+    telegram: Optional[str] = None
+    github: Optional[str] = None
+    bio: Optional[str] = None
+
+
+@router.get('/user/{username}', response_model=ProfileUserOut)
+def get_profile_by_username(username: str):
+    user = get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail={"code": "user_not_found"})
+    return {
+        "avatar": user.get("avatar"),
+        "website": user.get("website"),
+        "telegram": user.get("telegram"),
+        "github": user.get("github"),
+        "bio": user.get("bio")
+    }
+
+
 @router.get("/me", response_model=UserOut)
 def me(authorization: str = Header(None, alias="Authorization")):
     if (authorization and authorization.startswith("Bearer ")):
@@ -71,9 +88,7 @@ def me(authorization: str = Header(None, alias="Authorization")):
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
 
     return UserOut(
-        id=user["id"], email=user["email"], username=user["username"],
-        telegram=user.get("telegram"), github=user.get("github"),
-        website=user.get("website"), bio=user.get("bio"), avatar=user.get("avatar")
+        id=user["id"], email=user["email"], username=user["username"]
     )
 
 
