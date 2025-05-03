@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
 import os
 
 from routers.auth_router import router as auth_router
@@ -24,7 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router, prefix="/auth")
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+app.include_router(auth_router, prefix="/api/auth")
 app.include_router(oauth_router, prefix="/api/auth")
 app.include_router(user_router, prefix="/api")
 app.include_router(leaderboard_router, prefix="/api")

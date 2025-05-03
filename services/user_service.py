@@ -44,10 +44,16 @@ def change_db_users(email: str, *updates: tuple[str, any]) -> str:
     valid = [
         'password',
         'username',
+        'email',
         'achievement',
         'avatar',
         'verified',
-        'verification_code']
+        'verification_code',
+        'telegram',
+        'github',
+        'website',
+        'bio'
+    ]
     for column, value in updates:
         if column not in valid:
             return f"Error: invalid column {column}"
@@ -59,7 +65,8 @@ def change_db_users(email: str, *updates: tuple[str, any]) -> str:
 def get_user_by_email(email: str) -> dict | None:
     row = execute(
         """
-        SELECT id, email, password, username, achievement, avatar, verified, verification_code
+        SELECT id, email, password, username, achievement, avatar, verified, verification_code,
+               telegram, github, website, bio
         FROM users WHERE email = %s
         """,
         (email,), fetchone=True
@@ -67,14 +74,9 @@ def get_user_by_email(email: str) -> dict | None:
     if not row:
         return None
     keys = [
-        'id',
-        'email',
-        'password',
-        'username',
-        'achievement',
-        'avatar',
-        'verified',
-        'verification_code']
+        'id', 'email', 'password', 'username', 'achievement', 'avatar',
+        'verified', 'verification_code', 'telegram', 'github', 'website', 'bio'
+    ]
     return dict(zip(keys, row))
 
 
@@ -83,21 +85,19 @@ def get_user_by_username(username: str) -> dict | None:
     Возвращает пользователя по username или None.
     """
     row = execute(
-        "SELECT id, email, password, username, achievement, avatar, verified, verification_code"
-        " FROM users WHERE username = %s",
+        """
+        SELECT id, email, password, username, achievement, avatar, verified, verification_code,
+               telegram, github, website, bio
+        FROM users WHERE username = %s
+        """,
         (username,), fetchone=True
     )
     if not row:
         return None
     keys = [
-        'id',
-        'email',
-        'password',
-        'username',
-        'achievement',
-        'avatar',
-        'verified',
-        'verification_code']
+        'id', 'email', 'password', 'username', 'achievement', 'avatar',
+        'verified', 'verification_code', 'telegram', 'github', 'website', 'bio'
+    ]
     return dict(zip(keys, row))
 
 
@@ -110,7 +110,8 @@ def save_user_test(user_id: int, test_type: str, section: str,
         INSERT INTO tests(type, section, user_id, passed, total, average, earned_score, topics)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """,
-        (test_type, section, user_id, passed, total, average, passed, json.dumps(topics))
+        (test_type, section, user_id, passed,
+         total, average, passed, json.dumps(topics))
     )
 
 

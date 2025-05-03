@@ -15,6 +15,11 @@ class UserOut(BaseModel):
     id: int
     email: str
     username: str
+    telegram: Optional[str] = None
+    github: Optional[str] = None
+    website: Optional[str] = None
+    bio: Optional[str] = None
+    avatar: Optional[str] = None
 
 
 class AchievementOut(BaseModel):
@@ -65,8 +70,11 @@ def me(authorization: str = Header(None, alias="Authorization")):
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
 
-    return UserOut(id=user["id"], email=user["email"],
-                   username=user["username"])
+    return UserOut(
+        id=user["id"], email=user["email"], username=user["username"],
+        telegram=user.get("telegram"), github=user.get("github"),
+        website=user.get("website"), bio=user.get("bio"), avatar=user.get("avatar")
+    )
 
 
 @router.get("/users/{user_id}/achievements",
