@@ -7,7 +7,6 @@ def get_leaderboard(number_of_users: int = 10) -> dict:
     cached = redis_client.get(cache_key)
     if cached:
         return json.loads(cached)
-
     fund_query = """
         SELECT f.id, f.user_id, f.score, f.testsPassed, f.totalTests, f.lastActivity,
                u.username, u.achievement, u.avatar
@@ -29,7 +28,7 @@ def get_leaderboard(number_of_users: int = 10) -> dict:
 
     fundamentals = [
         {
-            'id': r[0], 'user_id': r[1], 'score': r[2], 'testsPassed': r[3],
+            'user_id': r[1], 'score': r[2], 'testsPassed': r[3],
             'totalTests': r[4], 'lastActivity': r[5],
             'username': r[6], 'achievement': r[7], 'avatar': r[8]
         }
@@ -37,7 +36,7 @@ def get_leaderboard(number_of_users: int = 10) -> dict:
     ]
     algorithms = [
         {
-            'id': r[0], 'user_id': r[1], 'score': r[2], 'testsPassed': r[3],
+            'user_id': r[1], 'score': r[2], 'testsPassed': r[3],
             'totalTests': r[4], 'lastActivity': r[5],
             'username': r[6], 'achievement': r[7], 'avatar': r[8]
         }
