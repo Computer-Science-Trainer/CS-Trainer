@@ -122,7 +122,8 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
     set_refresh_token(user['id'], refresh_token)
     background_tasks.add_task(check_and_award, user['id'], 'login')
     print(access_token)
-    return {'access_token': access_token, 'token_type': 'bearer', 'refresh_token': refresh_token}
+    return {'access_token': access_token,
+            'token_type': 'bearer', 'refresh_token': refresh_token}
 
 
 @router.post('/register')
@@ -398,11 +399,15 @@ async def delete_account(
 class RefreshRequest(BaseModel):
     refresh_token: str
 
+
 @router.post('/refresh')
 def refresh_token_endpoint(data: RefreshRequest):
     from services.user_service import get_user_by_refresh_token
     user = get_user_by_refresh_token(data.refresh_token)
     if not user:
-        raise HTTPException(status_code=401, detail={"code": "invalid_refresh_token"})
-    access_token = create_access_token({'sub': user['email'], 'user_id': user['id']})
+        raise HTTPException(
+            status_code=401, detail={
+                "code": "invalid_refresh_token"})
+    access_token = create_access_token(
+        {'sub': user['email'], 'user_id': user['id']})
     return {'access_token': access_token, 'token_type': 'bearer'}

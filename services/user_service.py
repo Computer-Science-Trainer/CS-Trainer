@@ -179,12 +179,15 @@ def delete_user_by_id(user_id: int) -> bool:
 
 
 def set_refresh_token(user_id: int, refresh_token: str):
-    execute("UPDATE users SET refresh_token = %s WHERE id = %s", (refresh_token, user_id))
+    execute("UPDATE users SET refresh_token = %s WHERE id = %s",
+            (refresh_token, user_id))
 
 
 def get_user_by_refresh_token(refresh_token: str) -> dict | None:
     row = execute(
-        "SELECT id, email, password, username, achievement, avatar, verified, verification_code, telegram, github, website, bio FROM users WHERE refresh_token = %s",
+        "SELECT id, email, password, username, achievement, avatar, "
+        "verified, verification_code, telegram, github, website, bio "
+        "FROM users WHERE refresh_token = %s",
         (refresh_token,), fetchone=True
     )
     if not row:
