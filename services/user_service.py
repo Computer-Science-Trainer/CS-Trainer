@@ -52,7 +52,8 @@ def change_db_users(email: str, *updates: tuple[str, any]) -> str:
         'telegram',
         'github',
         'website',
-        'bio'
+        'bio',
+        'refresh_token'
     ]
     for column, value in updates:
         if column not in valid:
@@ -175,3 +176,21 @@ def delete_user_by_id(user_id: int) -> bool:
     except Exception as e:
         print(f"Error deleting user {user_id}: {e}")
         return False
+
+
+def set_refresh_token(user_id: int, refresh_token: str):
+    execute("UPDATE users SET refresh_token = %s WHERE id = %s", (refresh_token, user_id))
+
+
+def get_user_by_refresh_token(refresh_token: str) -> dict | None:
+    row = execute(
+        "SELECT id, email, password, username, achievement, avatar, verified, verification_code, telegram, github, website, bio FROM users WHERE refresh_token = %s",
+        (refresh_token,), fetchone=True
+    )
+    if not row:
+        return None
+    keys = [
+        'id', 'email', 'password', 'username', 'achievement', 'avatar',
+        'verified', 'verification_code', 'telegram', 'github', 'website', 'bio'
+    ]
+    return dict(zip(keys, row))

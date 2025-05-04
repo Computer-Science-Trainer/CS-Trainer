@@ -5,6 +5,7 @@ from enum import Enum
 import random
 import os
 import uuid
+import secrets
 from services.user_service import save_user, change_db_users, get_user_by_email, delete_user_by_id
 from security import create_access_token, decode_access_token, verify_password
 from jwt import ExpiredSignatureError, InvalidTokenError
@@ -116,9 +117,12 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
                 'code': ErrorCodes.ACCOUNT_NOT_VERIFIED})
     access_token = create_access_token(
         {'sub': data.email, 'user_id': user['id']})
+    refresh_token = secrets.token_urlsafe(32)
+    from services.user_service import set_refresh_token
+    set_refresh_token(user['id'], refresh_token)
     background_tasks.add_task(check_and_award, user['id'], 'login')
     print(access_token)
-    return {'access_token': access_token, 'token_type': 'bearer'}
+    return {'access_token': access_token, 'token_type': 'bearer', 'refresh_token': refresh_token}
 
 
 @router.post('/register')
@@ -145,9 +149,14 @@ def register(data: RegisterRequest):
         raise HTTPException(
             status_code=500, detail={
                 'code': ErrorCodes.SAVING_FAILED})
+    user = get_user_by_email(data.email)
+    refresh_token = secrets.token_urlsafe(32)
+    from services.user_service import set_refresh_token
+    set_refresh_token(user['id'], refresh_token)
     print(f'Registration code for {data.email}: {code}')
     return {'message': {'code': ErrorCodes.REGISTRATION_SUCCESS},
-            'verification_code': code}
+            'verification_code': code,
+            'refresh_token': refresh_token}
 
 
 @router.post('/verify')
@@ -384,3 +393,16 @@ async def delete_account(
     if not deleted:
         raise HTTPException(status_code=500, detail={"code": "delete_failed"})
     return {"message": "account_deleted"}
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+@router.post('/refresh')
+def refresh_token_endpoint(data: RefreshRequest):
+    from services.user_service import get_user_by_refresh_token
+    user = get_user_by_refresh_token(data.refresh_token)
+    if not user:
+        raise HTTPException(status_code=401, detail={"code": "invalid_refresh_token"})
+    access_token = create_access_token({'sub': user['email'], 'user_id': user['id']})
+    return {'access_token': access_token, 'token_type': 'bearer'}
