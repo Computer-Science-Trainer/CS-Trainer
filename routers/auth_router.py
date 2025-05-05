@@ -9,6 +9,7 @@ import secrets
 from services.user_service import save_user, change_db_users, get_user_by_email, delete_user_by_id
 from security import create_access_token, decode_access_token, verify_password
 from jwt import ExpiredSignatureError, InvalidTokenError
+from services.email_service import send_verification_email
 
 MAX_AVATAR_SIZE = 1024 * 300  # 300 KB
 MAX_USERNAME_LEN = 32
@@ -127,7 +128,7 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
 
 
 @router.post('/register')
-def register(data: RegisterRequest):
+def register(data: RegisterRequest, background_tasks: BackgroundTasks):
     print(data)
     if len(data.username) > MAX_USERNAME_LEN:
         raise HTTPException(
@@ -150,6 +151,7 @@ def register(data: RegisterRequest):
         raise HTTPException(
             status_code=500, detail={
                 'code': ErrorCodes.SAVING_FAILED})
+    background_tasks.add_task(send_verification_email, data.email, code)
     user = get_user_by_email(data.email)
     refresh_token = secrets.token_urlsafe(32)
     from services.user_service import set_refresh_token
@@ -239,7 +241,7 @@ def recover_change_password(data: ChangePasswordRequest):
 
 
 @router.post('/verify/resend')
-def resend_code(data: ResendCodeRequest):
+def resend_code(data: ResendCodeRequest, background_tasks: BackgroundTasks):
     user = get_user_by_email(data.email)
     if not user:
         raise HTTPException(
@@ -254,7 +256,8 @@ def resend_code(data: ResendCodeRequest):
         raise HTTPException(
             status_code=500, detail={
                 'code': ErrorCodes.SAVING_FAILED})
-    print(f'Resend code for {data.email}: {code}')
+    # send verification email asynchronously
+    background_tasks.add_task(send_verification_email, data.email, code)
     return {'message': {'code': ErrorCodes.VERIFICATION_CODE_SENT}}
 
 
