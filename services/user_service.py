@@ -197,3 +197,20 @@ def get_user_by_refresh_token(refresh_token: str) -> dict | None:
         'verified', 'verification_code', 'telegram', 'github', 'website', 'bio'
     ]
     return dict(zip(keys, row))
+
+
+def get_user_by_id(user_id: int) -> dict | None:
+    """Return user dict by user id or None"""
+    row = execute(
+        """
+        SELECT id, email, password, username, achievement, avatar, verified, verification_code,
+               telegram, github, website, bio
+        FROM users WHERE id = %s
+        """,
+        (user_id,), fetchone=True
+    )
+    if not row:
+        return None
+    keys = ['id', 'email', 'password', 'username', 'achievement', 'avatar',
+            'verified', 'verification_code', 'telegram', 'github', 'website', 'bio']
+    return dict(zip(keys, row))

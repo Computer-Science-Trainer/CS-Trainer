@@ -122,7 +122,6 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
     from services.user_service import set_refresh_token
     set_refresh_token(user['id'], refresh_token)
     background_tasks.add_task(check_and_award, user['id'], 'login')
-    print(access_token)
     return {'access_token': access_token,
             'token_type': 'bearer', 'refresh_token': refresh_token}
 
