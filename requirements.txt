@@ -10,3 +10,4 @@ dbutils
 redis
 python-multipart
 passlib[bcrypt]
+pydantic[email]
