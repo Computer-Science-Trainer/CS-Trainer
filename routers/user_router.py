@@ -128,7 +128,10 @@ def check_is_admin(authorization: str = Header(None, alias="Authorization")):
     user_id = payload.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail={"code": "invalid_token"})
-    return {"is_admin": is_user_admin(user_id)}
+    is_admin = is_user_admin(user_id)
+    if not is_admin:
+        raise HTTPException(status_code=403, detail={"code": "forbidden"})
+    return {"is_admin": True}
 
 
 @router.get("/users/{user_id}/achievements",
