@@ -127,7 +127,13 @@ def get_user_tests(user_id: int) -> list[dict]:
     )
     result = []
     for test_id, test_type, sect, passed, total, average, earned_score, topics_json, created_at in rows:
-        topic_ids = json.loads(topics_json)
+        raw_ids = json.loads(topics_json)
+        if isinstance(raw_ids, list):
+            topic_ids = raw_ids
+        elif raw_ids is None:
+            topic_ids = []
+        else:
+            topic_ids = [raw_ids]
         if topic_ids:
             placeholders = ",".join(["%s"] * len(topic_ids))
             rows2 = execute(
