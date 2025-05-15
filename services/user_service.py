@@ -37,7 +37,7 @@ def save_user(email: str, password: str, username: str,
         """,
         (user['id'], 0, 0, 0, now)
     )
-    return 0
+    return 'success'
 
 
 def change_db_users(email: str, *updates: tuple[str, any]) -> str:

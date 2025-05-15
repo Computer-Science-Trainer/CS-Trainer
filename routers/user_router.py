@@ -5,7 +5,7 @@ from services.user_service import get_user_scores
 from security import decode_access_token
 from jwt import ExpiredSignatureError, InvalidTokenError
 from typing import List, Optional
-import datetime
+from datetime import datetime
 from services.achievement_service import get_user_achievements
 from services.user_service import get_user_by_id
 from services.admin_service import is_user_admin
@@ -23,7 +23,7 @@ class AchievementOut(BaseModel):
     code: str
     emoji: str
     unlocked: bool
-    unlocked_at: Optional[datetime.datetime] = None
+    unlocked_at: Optional[datetime] = None
 
 
 class TestOut(BaseModel):
@@ -35,7 +35,7 @@ class TestOut(BaseModel):
     average: float
     earned_score: int
     topics: List[str]
-    created_at: datetime.datetime
+    created_at: datetime
 
 
 class StatsOut(BaseModel):
@@ -44,6 +44,8 @@ class StatsOut(BaseModel):
     average: float
     fundamentals: int
     algorithms: int
+    testsPassed: int
+    totalTests: int
 
 
 class ProfileUserOut(BaseModel):

@@ -8,6 +8,7 @@ from services.admin_service import (
     get_settings, add_proposed_question, update_proposed_question,
     is_user_admin
 )
+from models.schemas import QuestionOut
 
 
 def admin_required(
@@ -55,20 +56,6 @@ class QuestionIn(BaseModel):
     terms_accepted: bool
     topic_code: str
     proposer_id: int
-
-
-class QuestionOut(BaseModel):
-    id: int
-    title: str
-    question_text: str
-    question_type: str
-    difficulty: str
-    options: List[str]
-    correct_answer: str
-    sample_answer: Optional[str] = None
-    terms_accepted: bool
-    topic_code: str
-    proposer_id: Optional[int] = None
 
 
 class SettingsOut(BaseModel):

@@ -146,7 +146,7 @@ def register(data: RegisterRequest, background_tasks: BackgroundTasks):
             status_code=400, detail={
                 'code': ErrorCodes.PASSWORD_LENGTH_INVALID})
     code = generate_verification_code()
-    if save_user(data.email, data.password, data.username, False, code):
+    if not save_user(data.email, data.password, data.username, False, code):
         raise HTTPException(
             status_code=500, detail={
                 'code': ErrorCodes.SAVING_FAILED})
