@@ -1,17 +1,16 @@
 from pydantic import BaseModel
-from typing import List, Optional, Literal, Dict, Any
-from datetime import datetime
-# from database import Base
-# from sqlalchemy import Column, Integer, String, JSON, Enum, Boolean, ForeignKey, DateTime, Float
+from typing import List, Optional, Literal, Dict, Any, Union
 
 
 class QuestionCreate(BaseModel):
-    text: str
-    type: Literal['choice', 'open', 'order']
-    options: Optional[List[str]] = None
-    correct_answer: Dict[str, Any]
-    explanation: Optional[str] = None
-    time_limit: Optional[int] = None
+    title: str
+    question_text: str
+    question_type: Literal['single-choice', 'open-ended']
+    difficulty: Literal['easy', 'medium', 'hard']
+    options: List[str]
+    correct_answer: str
+    topic_code: str
+    terms_accepted: bool
 
 
 class TestCreate(BaseModel):
@@ -19,6 +18,7 @@ class TestCreate(BaseModel):
     topics: List[str]
     questions: List[QuestionCreate]
     time_limit: Optional[int] = None
+    section: Literal['fundamentals', 'algorithms']
 
 
 class TestUpdate(BaseModel):
@@ -38,32 +38,28 @@ class TestSubmit(BaseModel):
     answers: List[UserAnswerSubmit]
 
 
-class QuestionFilter(BaseModel):
-    topics: Optional[List[str]] = None
-    # subject: Optional[Literal['fundamentals', 'algorithms']] = None
-    # difficulty: Optional[int] = None
-    include_wrong: Optional[bool] = False  # Включить вопросы с ошибками
-    limit: Optional[int] = 20
-
-
 class ExamConfig(BaseModel):
     question_count: int = 2
     time_limit: int = 3600
+    topic: str
 
 
-class QuestionSuggestion(BaseModel):
-    text: str
-    type: Literal['choice', 'open', 'order']
-    options: Optional[List[str]] = None
-    correct_answer: dict
-    explanation: Optional[str] = None
-    time_limit: Optional[int] = None
+class QuestionAnswer(BaseModel):
+    question_id: int
+    answer: Union[str, Dict]
+    response_time: float
+    
+    
+class QuestionFilter(BaseModel):
+    topics: Optional[List[str]] = None
+    include_wrong: bool = False  # Включить вопросы с ошибками
+    limit: int = 20
 
 
 class SuggestionOut(BaseModel):
     id: int
     user_id: int
-    question: QuestionSuggestion
+    question: dict
     status: str
     created_at: str
     admin_comment: Optional[str]
@@ -74,9 +70,8 @@ class SuggestionStatusUpdate(BaseModel):
     comment: Optional[str] = None
 
 
-class AchievementOut(BaseModel):
-    name: str
-    title: str
-    description: str
-    unlocked_at: datetime
-    icon: str
+class TestStats(BaseModel):
+    test_id: int
+    attempts: int
+    best_score: float
+    average_score: float

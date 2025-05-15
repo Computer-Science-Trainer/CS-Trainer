@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Request, HTTPException
 from starlette.responses import RedirectResponse
 import os
@@ -43,8 +44,10 @@ async def oauth_callback(provider: str, request: Request):
         raise HTTPException(status_code=404, detail="Unknown provider")
 
     if "error" in request.query_params:
-        error_description = request.query_params.get("error_description", "Access denied")
-        return RedirectResponse(f"{auth_frontend}/callback?error={error_description}")
+        error_description = request.query_params.get(
+            "error_description", "Access denied")
+        return RedirectResponse(
+            f"{auth_frontend}/callback?error={error_description}")
 
     client = oauth.create_client(provider)
     token = await client.authorize_access_token(request)

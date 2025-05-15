@@ -1,107 +1,125 @@
-from sqlalchemy import Column, Integer, String, JSON, Boolean, DateTime, ForeignKey, Enum, Float, JSON, DateTime
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, JSON, Boolean, DateTime, ForeignKey, Float, JSON, DateTime
 from datetime import datetime
 from database import Base
 
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    email = Column(String, unique=True)
-    password = Column(String)
-    username = Column(String)
+    email = Column(String(255), unique=True)
+    password = Column(String(255))
+    username = Column(String(50))
+    avatar = Column(String(255), nullable=True)
     verified = Column(Boolean, default=False)
-    verification_code = Column(String, nullable=True)
-    achievement = Column(String, default='0')
-    avatar = Column(String, default='0')
+    verification_code = Column(String(6))
+    telegram = Column(String(50), nullable=True)
+    github = Column(String(50), nullable=True)
+    website = Column(String(255), nullable=True)
+    bio = Column(String(500), nullable=True)
+    refresh_token = Column(String(255), nullable=True)
 
 
 class Test(Base):
     __tablename__ = 'tests'
     id = Column(Integer, primary_key=True)
-    title = Column(String)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    type = Column(String(50))
+    section = Column(String(50))
+    passed = Column(Integer)
+    total = Column(Integer)
+    average = Column(Float)
     topics = Column(JSON)
-    time_limit = Column(Integer)  # Общее время теста в секундах
+    created_at = Column(DateTime)
+    earned_score = Column(Integer)
 
 
 class Question(Base):
-    __tablename__ = 'questions'
+    __tablename__ = 'current_questions'
     id = Column(Integer, primary_key=True)
     test_id = Column(Integer, ForeignKey('tests.id'))
-    text = Column(String)
-    type = Column(Enum('choice', 'open', 'order', name='question_type'))
-    options = Column(JSON)
-    correct_answer = Column(JSON)
-    explanation = Column(String, nullable=True)
-    time_limit = Column(Integer)
+    title = Column(String(255))
+    question_text = Column(String(1000))
+    question_type = Column(String(20))  # single-choice/open-ended
+    difficulty = Column(String(10))     # easy/medium/hard
+    options = Column(JSON)              # Варианты ответов
+    correct_answer = Column(String(255))
+    sample_answer = Column(String(1000), nullable=True)
+    terms_accepted = Column(Boolean)
+    topic_code = Column(String(50))
+    proposer_id = Column(Integer, ForeignKey('users.id'))
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+    
+    
+class Fundamentals(Base):
+    __tablename__ = 'fundamentals'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    score = Column(Integer)
+    testsPassed = Column(Integer)
+    totalTests = Column(Integer)
+    lastActivity = Column(DateTime)
+    
+
+class Algorithms(Base):
+    __tablename__ = 'algorithms'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    score = Column(Integer)
+    testsPassed = Column(Integer)
+    totalTests = Column(Integer)
+    lastActivity = Column(DateTime)
 
 
 class UserTestSession(Base):
     __tablename__ = 'user_test_sessions'
+
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
     test_id = Column(Integer, ForeignKey('tests.id'), nullable=True)
     start_time = Column(DateTime)
     end_time = Column(DateTime, nullable=True)
+    status = Column(String(20))  # in_progress/completed/time_expired
     score = Column(Integer, nullable=True)
-    status = Column(String)
-
-
-class Fundamentals(Base):
-    __tablename__ = 'fundamentals'
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer)
-    score = Column(Integer, default=0)
-    testsPassed = Column(Integer, default=0)
-    totalTests = Column(Integer, default=0)
-    lastActivity = Column(DateTime)
-
-
-class Algorithms(Base):
-    __tablename__ = 'algorithms'
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer)
-    score = Column(Integer, default=0)
-    testsPassed = Column(Integer, default=0)
-    totalTests = Column(Integer, default=0)
-    lastActivity = Column(DateTime)
-
-
-class UserAnswer(Base):
-    __tablename__ = 'user_answers'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer)
-    question_id = Column(Integer, ForeignKey('questions.id'))
-    given_answer = Column(JSON)
-    is_correct = Column(Boolean)
-    response_time = Column(Float)
-
+    time_limit = Column(Integer, nullable=True)
+    exam_mode = Column(Boolean, default=False)
+    
 
 class UserSuggestion(Base):
     __tablename__ = 'user_suggestions'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
-    question_data = Column(JSON)  # Будем хранить ВСЕ данные здесь
-    status = Column(String, default='pending')  # Просто строка без Enum
+    question_data = Column(JSON)
+    status = Column(String(20))
+    admin_comment = Column(String(500), nullable=True)
+    created_at = Column(DateTime)
+    
 
-
-class Achievement(Base):
-    __tablename__ = 'achievements'
+class UserAchievement(Base):
+    __tablename__ = 'user_achievements'
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), index=True)
-    name = Column(String, index=True)  # Например: 'first_contribution', 'perfect_score'
-    title = Column(String)  # 'Знаток алгоритмов'
-    description = Column(String)  # 'Правильно ответил на 100 вопросов'
-    unlocked_at = Column(DateTime, default=datetime.utcnow)
-    icon = Column(String)  # URL иконки
+    user_id = Column(Integer, ForeignKey('users.id'))
+    achievement_id = Column(Integer, ForeignKey('achievements.id'))
+    unlocked_at = Column(DateTime)
 
 
-class AchievementTemplate(Base):
-    __tablename__ = "achievement_templates"
+class Topic(Base):
+    __tablename__ = 'topics'
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)  # Техническое имя (например, "first_test_passed")
-    title = Column(String)              # "Первый тест пройден"
-    description = Column(String)        # "Поздравляем! Вы прошли первый тест."
-    icon = Column(String)
+    label = Column(String(100))
+    code = Column(String(20))
+    section = Column(String(20))  # fundamentals/algorithms
+    parent_id = Column(Integer, ForeignKey('topics.id'), nullable=True)
+
+
+class UserAnswer(Base):
+    __tablename__ = 'user_answers'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    question_id = Column(Integer, ForeignKey('questions.id'))
+    given_answer = Column(JSON)
+    is_correct = Column(Boolean)
+    response_time = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    test_session_id = Column(Integer, ForeignKey('user_test_sessions.id'))

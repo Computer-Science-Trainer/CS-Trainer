@@ -1,12 +1,13 @@
-from datetime import datetime
+import datetime
 from fastapi import HTTPException
 import random
-from typing import List, Dict, Any
+from typing import List, Dict
 from sqlalchemy.orm import Session
-from local_db import SessionLocal
-from models.db_models import Test, Question, UserAnswer, UserTestSession, UserSuggestion, Achievement, AchievementTemplate
-from models.test_models import TestCreate, QuestionCreate, UserAnswerSubmit, TestSubmit, QuestionFilter, ExamConfig
+from database import SessionLocal
+from models.db_models import Test, Question, UserAnswer, UserSuggestion, Topic, UserTestSession
+from models.test_models import TestCreate, QuestionFilter, ExamConfig, TestUpdate
 from sqlalchemy import func, Integer
+from services.achievement_service import award_achievement, get_user_achievements
 import logging
 logger = logging.getLogger(__name__)
 
@@ -14,33 +15,38 @@ logger = logging.getLogger(__name__)
 def create_test(test_data: TestCreate, user_id: int) -> Dict:
     db: Session = SessionLocal()
     try:
+        for q in test_data.questions:
+            if not db.query(Topic).filter(Topic.code == q.topic_code).first():
+                raise HTTPException(400, detail=f"Topic {q.topic_code} not found")
         # Создаем тест
         db_test = Test(
             title=test_data.title,
             topics=test_data.topics,
             time_limit=test_data.time_limit,
+            user_id=user_id,
+            section=test_data.section
         )
         db.add(db_test)
         db.commit()
-        db.refresh(db_test)
 
         # Создаем вопросы
         for q in test_data.questions:
             db_question = Question(
-                test_id=db_test.id,
-                text=q.text,
-                type=q.type,
+                title=q.title,
+                question_text=q.question_text,
+                question_type=q.question_type,
+                difficulty=q.difficulty,
                 options=q.options,
                 correct_answer=q.correct_answer,
-                explanation=q.explanation,
-                time_limit=q.time_limit,
+                topic_code=q.topic_code,
+                terms_accepted=q.terms_accepted,
+                proposer_id=user_id,
+                test_id=db_test.id,
+                created_at=datetime.utcnow()
             )
             db.add(db_question)
 
         db.commit()
-
-        # # Создаем первоначальную версию теста
-        # create_test_version(db_test.id, user_id)
 
         return {"test_id": db_test.id}
     except Exception as e:
@@ -50,44 +56,48 @@ def create_test(test_data: TestCreate, user_id: int) -> Dict:
         db.close()
 
 
-def update_test(test_id: int, test_data: TestCreate, user_id: int) -> Dict:
+def update_test(test_id: int, test_data: TestUpdate, user_id: int) -> Dict:
     db: Session = SessionLocal()
     try:
-        # Получаем тест
         db_test = db.query(Test).filter(Test.id == test_id).first()
         if not db_test:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        # Обновляем данные теста
-        db_test.title = test_data.title
-        db_test.topics = test_data.topics
-        db_test.time_limit = test_data.time_limit
+        # Обновляем только переданные поля
+        if test_data.title is not None:
+            db_test.title = test_data.title
+        if test_data.topics is not None:
+            db_test.topics = test_data.topics
+        if test_data.time_limit is not None:
+            db_test.time_limit = test_data.time_limit
 
-        # Удаляем старые вопросы
-        db.query(Question).filter(Question.test_id == test_id).delete()
+        if test_data.questions is not None:
+            # Удаляем старые вопросы
+            db.query(Question).filter(Question.test_id == test_id).delete()
 
-        # Добавляем новые вопросы
-        for q in test_data.questions:
-            db_question = Question(
-                test_id=db_test.id,
-                text=q.text,
-                type=q.type,
-                options=q.options,
-                correct_answer=q.correct_answer,
-                explanation=q.explanation,
-                time_limit=q.time_limit
-            )
-            db.add(db_question)
+            # Добавляем новые вопросы
+            for q in test_data.questions:
+                db_question = Question(
+                    title=q.title,
+                    question_text=q.question_text,
+                    question_type=q.question_type,
+                    difficulty=q.difficulty,
+                    options=q.options,
+                    correct_answer=q.correct_answer,
+                    sample_answer=q.sample_answer,
+                    terms_accepted=q.terms_accepted,
+                    topic_code=q.topic_code,
+                    proposer_id=user_id,
+                    test_id=db_test.id,
+                    created_at=datetime.utcnow()
+                )
+                db.add(db_question)
 
         db.commit()
-
-        # Создаем новую версию теста
-        create_test_version(test_id, user_id)
-
         return {"message": "Test updated successfully"}
     except Exception as e:
         db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
@@ -96,42 +106,41 @@ def get_test(test_id: int, randomized: bool = False) -> List[Dict]:
     db: Session = SessionLocal()
     try:
         questions = db.query(Question).filter(Question.test_id == test_id).all()
+        if not questions:
+            return []
 
         result = []
         for q in questions:
             question_data = {
                 "id": q.id,
-                "test_id": q.test_id,
-                "text": q.text,
-                "type": q.type,
-                "options": q.options.copy() if q.options else None,  # Создаем копию списка
-                "time_limit": q.time_limit
+                "title": q.title,
+                "question_text": q.question_text,
+                "question_type": q.question_type,
+                "difficulty": q.difficulty,
+                "options": q.options.copy() if q.options else [],
+                "topic_code": q.topic_code
             }
-
-            # Для клиента не отправляем правильные ответы
             if not randomized:
-                question_data["correct_answer"] = q.correct_answer
-                question_data["explanation"] = q.explanation
+                question_data.update({
+                    "correct_answer": q.correct_answer,
+                    "sample_answer": q.sample_answer
+                })
+            elif q.question_type == "single-choice":
+                random.shuffle(question_data["options"])
 
             result.append(question_data)
 
         if randomized:
             random.shuffle(result)
             for q in result:
-                if q['type'] == 'choice' and q['options']:
-                    random.shuffle(q['options'])
-                elif q['type'] == 'order' and q['options']:
-                    # Сохраняем правильный порядок во временном поле
-                    q['_correct_order'] = q['options'].copy()
-                    random.shuffle(q['options'])  # Перемешиваем для показа
-
-                    # Удаляем служебные данные в randomized-режиме
-                q.pop('correct_answer', None)
-                q.pop('explanation', None)
+                q.pop("correct_answer", None)
+                q.pop("sample_answer", None)
 
         return result
     finally:
         db.close()
+
+
 
 
 def start_test_session(test_id: int, user_id: int) -> Dict:
@@ -159,6 +168,9 @@ def start_test_session(test_id: int, user_id: int) -> Dict:
             "start_time": session.start_time,
             "time_limit": test.time_limit
         }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
@@ -180,61 +192,42 @@ def submit_test_answers(test_id: int, user_id: int, answers: dict) -> Dict:
         session.end_time = datetime.utcnow()
         session.status = "completed"
 
-        # Сохраняем ответы и считаем правильные
-        correct_answers = 0
-        total_questions = 0
-
-        answers_list = answers.get("answers", [])
-
-        for answer in answers_list:
-            question_id = answer.get("question_id")
-            given_answer = answer.get("given_answer", {})
-            response_time = answer.get("response_time", 0.0)
-
-            question = db.query(Question).filter(Question.id == question_id,
-                                                 Question.test_id == test_id).first()
+        correct = 0
+        for answer in answers.get("answers", []):
+            question = db.query(Question).get(answer["question_id"])
             if not question:
-                raise HTTPException(400, f"Question {answer['question_id']} not found in test {test_id}")
+                continue
 
-            total_questions += 1
             is_correct = False
-
-            # Проверяем правильность ответа в зависимости от типа вопроса
-            if question.type == 'choice':
-                is_correct = set(given_answer.get('answers', [])) == set(
-                    question.correct_answer.get('answers', []))
-            elif question.type == 'open':
-                is_correct = given_answer.get('text', '').lower() == question.correct_answer.get('text', '').lower()
-
-            elif question.type == 'order':
-                is_correct = given_answer.get('order', []) == question.correct_answer.get('order', [])
+            if question.question_type == "single-choice":
+                is_correct = answer.get("answer") == question.correct_answer
+            elif question.question_type == "open-ended":
+                is_correct = answer.get("text", "").lower() == question.correct_answer.lower()
 
             if is_correct:
-                correct_answers += 1
+                correct += 1
 
-            # Сохраняем ответ пользователя
-            user_answer = UserAnswer(
+            db.add(UserAnswer(
                 user_id=user_id,
-                question_id=question_id,
-                given_answer=given_answer,
+                question_id=question.id,
+                given_answer=answer,
                 is_correct=is_correct,
-                response_time=response_time,
-                # test_session_id=session.id
-            )
-            db.add(user_answer)
+                response_time=answer.get("response_time", 0)
+            ))
 
-        # Рассчитываем результат
-        score = int((correct_answers / total_questions) * 100) if total_questions > 0 else 0
-
+        score = int((correct / len(answers["answers"])) * 100) if answers["answers"] else 0
         session.score = score
-        check_achievements(user_id, db)
         db.commit()
+
         return {
             "score": score,
-            "correct_answers": correct_answers,
-            "total_questions": total_questions,
+            "correct": correct,
+            "total": len(answers["answers"]),
             "time_spent": (session.end_time - session.start_time).total_seconds()
         }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, detail=str(e))
     finally:
         db.close()
 
@@ -243,21 +236,19 @@ def submit_test_answers(test_id: int, user_id: int, answers: dict) -> Dict:
 def submit_question_suggestion(user_id: int, question_data: dict) -> dict:
     db = SessionLocal()
     try:
-        sfull_data = {
-            "question": suggestion_data,
-            "meta": {
-                "created_at": datetime.utcnow().isoformat(),
-                "admin_comment": None,
-                "status": "pending"
-            }
-        }
-
         suggestion = UserSuggestion(
             user_id=user_id,
-            question_data=full_data,  # Все храним в JSON
-            status="pending"  # Дублируем статус для простоты фильтрации
+            question_data={
+                "title": question_data.get("title"),
+                "question_text": question_data.get("question_text"),
+                "question_type": question_data.get("question_type"),
+                "options": question_data.get("options", []),
+                "correct_answer": question_data.get("correct_answer"),
+                "topic_code": question_data.get("topic_code")
+            },
+            status="pending",
+            created_at=datetime.utcnow()
         )
-
         db.add(suggestion)
         db.commit()
         return {"status": "success", "suggestion_id": suggestion.id}
@@ -275,20 +266,35 @@ def update_suggestion_status(suggestion_id: int, new_status: str, comment: str =
         if not suggestion:
             raise HTTPException(status_code=404, detail="Предложение не найдено")
 
-        # Обновляем данные в JSON
-        question_data = suggestion.question_data
-        question_data["meta"]["status"] = new_status
-        question_data["meta"]["admin_comment"] = comment
-
-        # Обновляем и основное поле status для фильтрации
         suggestion.status = new_status
-        suggestion.question_data = question_data
-        if update.status == 'approved':
-            check_contribution_achievements(suggestion.user_id, db)
-            check_achievements(suggestion.user_id, db)
+        suggestion.admin_comment = comment
+
+        if new_status == 'approved':
+            # Проверяем, существует ли уже такой вопрос
+            existing = db.query(Question).filter(
+                Question.title == suggestion.question_data.get("title"),
+                Question.question_text == suggestion.question_data.get("question_text")
+            ).first()
+
+            if not existing:
+                new_question = Question(
+                    title=suggestion.question_data.get("title"),
+                    question_text=suggestion.question_data.get("question_text"),
+                    question_type=suggestion.question_data.get("type"),
+                    options=suggestion.question_data.get("options", []),
+                    correct_answer=suggestion.question_data.get("correct_answer"),
+                    topic_code=suggestion.question_data.get("topic_code"),
+                    proposer_id=suggestion.user_id,
+                    created_at=datetime.utcnow(),
+                    terms_accepted=True
+                )
+                db.add(new_question)
 
         db.commit()
         return {"status": "success"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
@@ -314,138 +320,15 @@ def get_suggestions(status: str = None):
         db.close()
 
 
-# Для достижений
-def check_achievements(user_id: int, db: Session):
-    """Проверяет и выдает ачивки пользователю"""
-    # Проверяем существование пользователя
-    user = db.query(User).filter_by(id=user_id).first()
-    if not user:
-        logger.warning(f"User {user_id} not found when checking achievements")
-        return
-    # stats = get_user_stats(user_id)
-
-    test_sessions = db.query(UserTestSession).filter_by(
-        user_id=user_id,
-        status="completed"
-    ).all()
-
-    achievements_to_grant = []
-
-    # 1. Первый тест
-    if len(test_sessions) == 1 and not has_achievement(user_id, "first_test_passed", db):
-        achievements_to_grant.append("first_test_passed")
-
-    # 2. Идеальный результат
-    perfect_sessions = [s for s in test_sessions if s.score == 100]
-    if perfect_sessions and not has_achievement(user_id, "perfect_score", db):
-        achievements_to_grant.append("perfect_score")
-
-    # 3. Быстрое прохождение
-    fast_sessions = [
-        s for s in test_sessions
-        if (s.end_time - s.start_time).total_seconds() < 300  # 5 минут
-    ]
-    if fast_sessions and not has_achievement(user_id, "fast_learner", db):
-        achievements_to_grant.append("fast_learner")
-
-    # 4. Марафонец
-    if len(test_sessions) >= 10 and not has_achievement(user_id, "marathoner", db):
-        achievements_to_grant.append("marathoner")
-
-    # Выдаем все новые достижения одним запросом
-    for achievement_name in achievements_to_grant:
-        grant_achievement(user_id, achievement_name, db)
+def has_achievement(user_id: int, achievement_name: str, db: Session) -> bool:
+    """Проверяет, есть ли у пользователя ачивка"""
+    user_achievements = get_user_achievements(user_id)
+    return any(ach['code'] == achievement_name for ach in user_achievements)
 
 
 def grant_achievement(user_id: int, achievement_name: str, db: Session):
     """Выдает ачивку пользователю"""
-    try:
-        template = db.query(AchievementTemplate).filter_by(name=achievement_name).first()
-        if not template:
-            logger.error(f"Achievement template {achievement_name} not found!")
-            return
-
-        # Проверяем, нет ли уже такого достижения
-        existing = db.query(Achievement).filter_by(
-            user_id=user_id,
-            name=achievement_name
-        ).first()
-
-        if existing:
-            return
-
-        achievement = Achievement(
-            user_id=user_id,
-            name=template.name,
-            title=template.title,
-            description=template.description,
-            icon=template.icon,
-            unlocked_at=datetime.utcnow()
-        )
-        db.add(achievement)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error granting achievement {achievement_name} to user {user_id}: {str(e)}")
-        raise
-
-
-def has_achievement(user_id: int, achievement_name: str, db: Session) -> bool:
-    """Проверяет, есть ли у пользователя ачивка"""
-    return db.query(Achievement).filter_by(
-        user_id=user_id,
-        name=achievement_name
-    ).first() is not None
-
-
-def check_contribution_achievements(user_id: int):
-    """Проверяет достижения, связанные с вкладом пользователя"""
-    # db = SessionLocal()
-    try:
-        count = db.query(UserSuggestion).filter(
-            UserSuggestion.user_id == user_id,
-            UserSuggestion.status == 'approved'
-        ).count()
-
-        achievements = []
-        if count >= 1 and not has_achievement(user_id, 'first_contribution', db):
-            template = db.query(AchievementTemplate).filter_by(name='first_contribution').first()
-            if template:
-                achievements.append(Achievement(
-                    user_id=user_id,
-                    name=template.name,
-                    title=template.title,
-                    description=template.description,
-                    icon=template.icon,
-                    unlocked_at=datetime.utcnow()
-                ))
-
-        for ach in achievements:
-            db.add(ach)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error checking contribution achievements for user {user_id}: {str(e)}")
-        raise
-    finally:
-        db.close()
-
-
-def get_user_achievements(user_id: int) -> List[Dict]:
-    db = SessionLocal()
-    try:
-        return [
-            {
-                "name": a.name,
-                "title": a.title,
-                "description": a.description,
-                "icon": a.icon,
-                "unlocked_at": a.unlocked_at
-            }
-            for a in db.query(Achievement).filter_by(user_id=user_id).all()
-        ]
-    finally:
-        db.close()
+    award_achievement(user_id, achievement_name)
 
 
 def get_user_stats(user_id: int) -> Dict:
@@ -507,7 +390,7 @@ def get_questions_by_filter(user_id: int, filters: QuestionFilter, skip: int, li
             )
             query = query.filter(Question.id.in_(wrong_answers))
 
-        questions = query.offset(skip).limit(limit).all()
+        questions = query.offset(skip).limit(filters.limit).all()
 
         # Перемешивание
         random.shuffle(questions)
@@ -515,12 +398,11 @@ def get_questions_by_filter(user_id: int, filters: QuestionFilter, skip: int, li
         for q in questions:
             question_data = {
                 "id": q.id,
-                "text": q.text,
-                "type": q.type,
+                "question_text": q.text,
+                "question_type": q.type,
                 "options": q.options if q.options else None,
                 "time_limit": q.time_limit,
-                # Темы берем из родительского теста
-                "topics": db.query(Test.topics).filter(Test.id == q.test_id).scalar()
+                "topics": [q.topic_code]
             }
             if q.type == 'choice' and question_data['options']:
                 random.shuffle(question_data['options'])
@@ -531,80 +413,35 @@ def get_questions_by_filter(user_id: int, filters: QuestionFilter, skip: int, li
         db.close()
 
 
-def get_topic_stats(user_id: int):
+def get_topic_stats(user_id: int) -> Dict[str, int]:
     db = SessionLocal()
     try:
-        # Анализируем ошибки по темам
-        topic_errors = db.execute("""
-            SELECT jsonb_array_elements_text(t.topics) as topic,
-                   COUNT(*) as error_count
+        stats = db.execute("""
+            SELECT q.topic_code, COUNT(*) as error_count
             FROM user_answers ua
             JOIN questions q ON ua.question_id = q.id
-            JOIN tests t ON q.test_id = t.id
             WHERE ua.user_id = :user_id AND ua.is_correct = False
-            GROUP BY topic
-            ORDER BY error_count DESC
+            GROUP BY q.topic_code
         """, {'user_id': user_id}).fetchall()
 
-        return [{"topic": row[0], "error_count": row[1]} for row in topic_errors]
+        return {row[0]: row[1] for row in stats}
     finally:
         db.close()
 
 
-def get_wrong_answers(user_id: int, limit: int = 5) -> List:
+def get_questions_by_topic(topic_code: str, limit: int = 10) -> List[Dict]:
     db = SessionLocal()
     try:
-        # Получаем вопросы с ошибками
-        wrong_answers = db.query(
-            UserAnswer.question_id,
-            func.count(UserAnswer.id).label('error_count')
-        ).filter(
-            UserAnswer.user_id == user_id,
-            UserAnswer.is_correct == False
-        ).group_by(UserAnswer.question_id).all()
-
-        # Получаем похожие вопросы
-        similar_questions = []
-        for q_id in wrong_answers:
-            original = db.query(Question).filter(Question.id == q_id).first()
-            if original:
-                similar = db.query(Question).filter(
-                    Question.test_id == original.test_id,
-                    Question.id != q_id
-                ).limit(2).all()
-                similar_questions.extend(similar)
-
-        return [{
-            "id": q.id,
-            "text": q.text,
-            "type": q.type,
-            "options": q.options if q.options else None
-        } for q in similar_questions]
-    finally:
-        db.close()
-
-
-def get_similar_questions(question_id: int, user_id: int, limit: int = 5) -> List[Dict]:
-    """Получение похожих вопросов на тот, где была ошибка"""
-    db = SessionLocal()
-    try:
-        # Получаем тему исходного вопроса
-        original = db.query(Question).filter(Question.id == question_id).first()
-        if not original:
-            return []
-
-        # Ищем вопросы из того же теста
-        similar = db.query(Question).filter(
-            Question.test_id == original.test_id,
-            Question.id != question_id
+        questions = db.query(Question).filter(
+            Question.topic_code == topic_code
         ).limit(limit).all()
 
         return [{
             "id": q.id,
-            "text": q.text,
-            "type": q.type,
-            "options": random.sample(q.options, len(q.options)) if q.options else None
-        } for q in similar]
+            "title": q.title,
+            "question_text": q.question_text,
+            "difficulty": q.difficulty
+        } for q in questions]
     finally:
         db.close()
 
@@ -613,7 +450,7 @@ def generate_exam(user_id: int, config: ExamConfig) -> Dict:
     db = SessionLocal()
     try:
         questions = db.query(Question).join(Test).filter(
-            Test.topics.contains([config.topic])  # Ищем вопросы из тестов с указанной темой
+            Question.topic_code == config.topic  # Ищем вопросы из тестов с указанной темой
         ).order_by(func.random()).limit(config.question_count).all()
 
         if not questions:
@@ -639,8 +476,8 @@ def generate_exam(user_id: int, config: ExamConfig) -> Dict:
             "questions": [
                 {
                     "id": q.id,
-                    "text": q.text,
-                    "type": q.type,
+                    "question_text": q.question_text,
+                    "question_type": q.type,
                     "options": q.options if q.options else None,
                     "time_limit": q.time_limit
                 } for q in questions
@@ -716,11 +553,10 @@ def submit_exam_answers(session_id: int, user_id: int, answers: dict) -> Dict:
 
 
 def check_answer(question: Question, user_answer: dict) -> bool:
-    """Проверка ответа в зависимости от типа вопроса"""
-    if question.type == 'choice':
-        return set(user_answer.get('answers', [])) == set(question.correct_answer.get('answers', []))
-    elif question.type == 'open':
-        return user_answer.get('text', '').lower() == question.correct_answer.get('text', '').lower()
-    elif question.type == 'order':
-        return user_answer.get('order', []) == question.correct_answer.get('order', [])
+    """Проверка ответа с учетом структуры БД"""
+    if question.question_type == "single-choice":
+        return user_answer.get("answer") == question.correct_answer
+    elif question.question_type == "open-ended":
+        return user_answer.get("text", "").strip().lower() == question.correct_answer.strip().lower()
     return False
+
