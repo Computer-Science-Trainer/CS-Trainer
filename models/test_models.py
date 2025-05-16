@@ -53,6 +53,7 @@ class QuestionAnswer(BaseModel):
 class QuestionFilter(BaseModel):
     topics: Optional[List[str]] = None
     include_wrong: bool = False  # Включить вопросы с ошибками
+    skip: int = 0
     limit: int = 20
 
 

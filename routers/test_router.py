@@ -128,10 +128,11 @@ async def get_question_by_id(
 @router.get("/wrong_answers")
 async def get_wrong_answers(
     user: UserOut = Depends(get_current_user),
+    skip: int = 0,
     limit: int = 10
 ):
     """Вопросы с неправильными ответами"""
-    filters = QuestionFilter(include_wrong=True, limit=limit)
+    filters = QuestionFilter(include_wrong=True, skip=skip, limit=limit)
     return get_questions_by_filter(user.id, filters)
 
 
@@ -307,4 +308,3 @@ def format_suggestion_response(suggestion_id):
         }
     finally:
         db.close()
-        

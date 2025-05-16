@@ -373,7 +373,7 @@ def get_user_stats(user_id: int) -> Dict:
         db.close()
 
 
-def get_questions_by_filter(user_id: int, filters: QuestionFilter, skip: int, limit: int) -> List[Dict]:
+def get_questions_by_filter(user_id: int, filters: QuestionFilter) -> List[Dict]:
     db = SessionLocal()
     try:
         query = db.query(Question).join(Test, Question.test_id == Test.id)
@@ -390,7 +390,7 @@ def get_questions_by_filter(user_id: int, filters: QuestionFilter, skip: int, li
             )
             query = query.filter(Question.id.in_(wrong_answers))
 
-        questions = query.offset(skip).limit(filters.limit).all()
+        questions = query.offset(filters.skip).limit(filters.limit).all()
 
         # Перемешивание
         random.shuffle(questions)
