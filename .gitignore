@@ -3,6 +3,7 @@ database_user.json
 
 # Virtual environment files
 venv/
+.idea/
 
 # Python cache files
 __pycache__/
