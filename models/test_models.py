@@ -57,15 +57,6 @@ class QuestionFilter(BaseModel):
     limit: int = 20
 
 
-class SuggestionOut(BaseModel):
-    id: int
-    user_id: int
-    question: dict
-    status: str
-    created_at: str
-    admin_comment: Optional[str]
-
-
 class SuggestionStatusUpdate(BaseModel):
     status: Literal['approved', 'rejected']
     comment: Optional[str] = None

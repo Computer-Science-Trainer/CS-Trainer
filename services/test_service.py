@@ -141,8 +141,6 @@ def get_test(test_id: int, randomized: bool = False) -> List[Dict]:
         db.close()
 
 
-
-
 def start_test_session(test_id: int, user_id: int) -> Dict:
     db = SessionLocal()
     try:

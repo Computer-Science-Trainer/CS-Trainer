@@ -16,12 +16,12 @@ from services.test_service import (
 from routers.user_router import UserOut
 from database import SessionLocal
 from datetime import datetime
-from models.db_models import Question, UserSuggestion
+from models.db_models import Question, UserSuggestion, Topic
 from models.test_models import ExamConfig, SuggestionStatusUpdate, QuestionFilter
 from security import decode_access_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from models.db_models import Topic
+from models.schemas import QuestionOut, SuggestionOut
 
 
 def get_db():
@@ -61,18 +61,15 @@ router = APIRouter(prefix="/api/tests")
 
 @router.post("/")
 async def create_new_test(test_data: TestCreate, user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
-    try:
-        for topic in test_data.topics:
-            if not db.query(Topic).filter(Topic.code == topic).first():
-                raise HTTPException(status_code=400, detail=f"Topic {topic} not found")
+    for topic in test_data.topics:
+        if not db.query(Topic).filter(Topic.code == topic).first():
+            raise HTTPException(status_code=400, detail=f"Topic {topic} not found")
 
-        for question in test_data.questions:
-            if not db.query(Topic).filter(Topic.code == question.topic_code).first():
-                raise HTTPException(status_code=400, detail=f"Topic {question.topic_code} not found")
+    for question in test_data.questions:
+        if not db.query(Topic).filter(Topic.code == question.topic_code).first():
+            raise HTTPException(status_code=400, detail=f"Topic {question.topic_code} not found")
 
-        return create_test(test_data, user.id)
-    finally:
-        db.close()
+    return create_test(test_data, user.id)
 
 
 @router.put("/{test_id}")
@@ -100,29 +97,26 @@ async def get_user_statistics(user_id: int):
     return get_user_stats(user_id)
 
 
-@router.get("/questions/{question_id}")
+@router.get("/questions/{question_id}", response_model=QuestionOut)
 async def get_question_by_id(
         question_id: int,
         user: UserOut = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
-    try:
-        question = db.query(Question).filter(Question.id == question_id).first()
-        if not question:
-            raise HTTPException(status_code=404, detail="Question not found")
+    question = db.query(Question).filter(Question.id == question_id).first()
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
 
-        return {
-            "id": question.id,
-            "title": question.title,
-            "question_text": question.question_text,
-            "question_type": question.question_type,
-            "difficulty": question.difficulty,
-            "options": question.options,
-            "topic_code": question.topic_code,
-            "created_at": question.created_at
-        }
-    finally:
-        db.close()
+    return {
+        "id": question.id,
+        "title": question.title,
+        "question_text": question.question_text,
+        "question_type": question.question_type,
+        "difficulty": question.difficulty,
+        "options": question.options,
+        "topic_code": question.topic_code,
+        "created_at": question.created_at
+    }
 
 
 @router.get("/wrong_answers")
@@ -164,7 +158,7 @@ async def get_topic_statistics(
     return get_topic_stats(user.id)
 
 
-@router.get("/questions/by-topic/{topic_code}")
+@router.get("/questions/by-topic/{topic_code}", response_model=List[QuestionOut])
 async def get_questions_by_topic(
     topic_code: str,
     limit: int = 10,
@@ -183,24 +177,21 @@ async def create_suggestion(
         user: UserOut = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
-    try:
-        new_suggestion = UserSuggestion(
-            user_id=user.id,
-            question_data={
-                "title": suggestion.title,
-                "question_text": suggestion.question_text,
-                "question_type": suggestion.question_type,
-                "options": suggestion.options,
-                "correct_answer": suggestion.correct_answer,
-                "topic_code": suggestion.topic_code
-            },
-            status="pending"
-        )
-        db.add(new_suggestion)
-        db.commit()
-        return format_suggestion_response(new_suggestion.id)
-    finally:
-        db.close()
+    new_suggestion = UserSuggestion(
+        user_id=user.id,
+        question_data={
+            "title": suggestion.title,
+            "question_text": suggestion.question_text,
+            "question_type": suggestion.question_type,
+            "options": suggestion.options,
+            "correct_answer": suggestion.correct_answer,
+            "topic_code": suggestion.topic_code
+        },
+        status="pending"
+    )
+    db.add(new_suggestion)
+    db.commit()
+    return format_suggestion_response(new_suggestion.id)
 
 
 @router.get("/suggestions/{suggestion_id}", response_model=SuggestionOut)
@@ -245,36 +236,32 @@ async def update_suggestion_status(
         db: Session = Depends(get_db)
 ):
     """Обновление статуса предложения (админ)"""
-    user_id = admin["user_id"]
-    try:
-        suggestion = db.query(UserSuggestion).get(suggestion_id)
-        if not suggestion:
-            raise HTTPException(status_code=404, detail="Предложение не найдено")
+    suggestion = db.query(UserSuggestion).get(suggestion_id)
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Предложение не найдено")
 
-        suggestion.status = update.status
-        suggestion.admin_comment = update.comment
+    suggestion.status = update.status
+    suggestion.admin_comment = update.comment
 
-        if update.status == 'approved':
-            # Создаем вопрос на основе предложения
-            new_question = Question(
-                title=suggestion.question_data['title'],
-                question_text=suggestion.question_data['question_text'],
-                question_type=suggestion.question_data['question_type'],
-                difficulty=suggestion.question_data.get('difficulty', 'medium'),
-                options=suggestion.question_data.get('options', []),
-                correct_answer=suggestion.question_data['correct_answer'],
-                sample_answer=suggestion.question_data.get('sample_answer'),
-                terms_accepted=True,
-                topic_code=suggestion.question_data['topic_code'],
-                proposer_id=suggestion.user_id,
-                created_at=datetime.utcnow()
-            )
-            db.add(new_question)
+    if update.status == 'approved':
+        # Создаем вопрос на основе предложения
+        new_question = Question(
+            title=suggestion.question_data['title'],
+            question_text=suggestion.question_data['question_text'],
+            question_type=suggestion.question_data['question_type'],
+            difficulty=suggestion.question_data.get('difficulty', 'medium'),
+            options=suggestion.question_data.get('options', []),
+            correct_answer=suggestion.question_data['correct_answer'],
+            sample_answer=suggestion.question_data.get('sample_answer'),
+            terms_accepted=True,
+            topic_code=suggestion.question_data['topic_code'],
+            proposer_id=suggestion.user_id,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_question)
 
-        db.commit()
-        return {"status": "success"}
-    finally:
-        db.close()
+    db.commit()
+    return {"status": "success"}
         
         
 def format_questions_response(questions):
