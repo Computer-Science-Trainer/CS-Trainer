@@ -35,14 +35,14 @@ class Test(Base):
 
 class Question(Base):
     __tablename__ = 'questions'
-    iid = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)
     test_id = Column(Integer, ForeignKey('tests.id'), nullable=True)
     title = Column(String(255), nullable=False)
     question_text = Column(String(1000), nullable=False)
     question_type = Column(String(20), nullable=False)
     difficulty = Column(String(10), nullable=False)
     options = Column(JSON, nullable=True)
-    correct_answer = Column(String(255), nullable=False)
+    correct_answer = Column(JSON, nullable=False)
     sample_answer = Column(String(1000), nullable=True)
     terms_accepted = Column(Boolean, default=False, nullable=False)
     topic_code = Column(String(50), nullable=False)
