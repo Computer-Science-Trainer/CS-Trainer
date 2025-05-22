@@ -7,9 +7,10 @@ class QuestionOut(BaseModel):
     id: int
     title: str
     question_text: str
-    question_type: str
+    question_type: Literal['single-choice', 'multiple-choice', 'open-ended', 'ordering', 'drag-drop']
     difficulty: str
     options: List[str]
+    correct_answer: Union[str, List[str]]
     topic_code: str
     created_at: datetime
     
