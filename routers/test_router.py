@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from models.test_models import TestCreate, TestUpdate, SuggestionOut, QuestionCreate
+from models.test_models import TestCreate, TestUpdate, QuestionCreate
 from services.test_service import (
     create_test,
     get_test,
@@ -17,6 +17,7 @@ from routers.user_router import UserOut
 from database import SessionLocal
 from datetime import datetime
 from models.db_models import Question, UserSuggestion, Topic
+from models.schemas import SuggestionOut
 from models.test_models import ExamConfig, SuggestionStatusUpdate, QuestionFilter
 from security import decode_access_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -168,6 +169,85 @@ async def get_questions_by_topic(
         Question.topic_code == topic_code
     ).limit(limit).all()
     return format_questions_response(questions)
+
+
+@router.post("/questions/", response_model=QuestionOut)
+async def create_question(
+    question: QuestionCreate,
+    user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Проверка существования темы
+    topic = db.query(Topic).filter(Topic.code == question.topic_code).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail=f"Topic {question.topic_code} not found")
+
+    # Валидация correct_answer в зависимости от типа вопроса
+    if question.question_type in ['multiple-choice', 'ordering']:
+        if not isinstance(question.correct_answer, list):
+            raise HTTPException(
+                status_code=400,
+                detail=f"For {question.question_type}, correct_answer must be a list"
+            )
+        if question.question_type == 'multiple-choice' and len(question.correct_answer) < 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Multiple-choice questions must have at least one correct answer"
+            )
+    elif question.question_type in ['single-choice', 'open-ended']:
+        if not isinstance(question.correct_answer, str):
+            raise HTTPException(
+                status_code=400,
+                detail=f"For {question.question_type}, correct_answer must be a string"
+            )
+
+    # Проверка options для вопросов с вариантами ответов
+    if question.question_type in ['single-choice', 'multiple-choice', 'ordering']:
+        if not question.options or len(question.options) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{question.question_type} questions must have at least 2 options"
+            )
+
+    # Создание вопроса в БД
+    try:
+        db_question = Question(
+            title=question.title,
+            question_text=question.question_text,
+            question_type=question.question_type,
+            difficulty=question.difficulty,
+            options=question.options,
+            correct_answer=question.correct_answer,
+            topic_code=question.topic_code,
+            proposer_id=user.id,
+            created_at=datetime.utcnow(),
+            terms_accepted=question.terms_accepted
+        )
+
+        db.add(db_question)
+        db.commit()
+        db.refresh(db_question)
+
+        # Формируем ответ
+        return {
+            "id": db_question.id,
+            "title": db_question.title,
+            "question_text": db_question.question_text,
+            "question_type": db_question.question_type,
+            "difficulty": db_question.difficulty,
+            "options": db_question.options,
+            "correct_answer": db_question.correct_answer,
+            "topic_code": db_question.topic_code,
+            "created_at": db_question.created_at
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating question: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while creating the question"
+        )
 
 
 # Для предложений вопросов
