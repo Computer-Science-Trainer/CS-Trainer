@@ -5,10 +5,10 @@ from typing import List, Optional, Literal, Dict, Any, Union
 class QuestionCreate(BaseModel):
     title: str
     question_text: str
-    question_type: Literal['single-choice', 'open-ended']
+    question_type: Literal['single-choice', 'multiple-choice', 'open-ended', 'ordering']
     difficulty: Literal['easy', 'medium', 'hard']
     options: List[str]
-    correct_answer: str
+    correct_answer: Union[str, List[str]]
     topic_code: str
     terms_accepted: bool
 
