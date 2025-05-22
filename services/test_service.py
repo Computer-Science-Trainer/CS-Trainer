@@ -551,10 +551,19 @@ def submit_exam_answers(session_id: int, user_id: int, answers: dict) -> Dict:
 
 
 def check_answer(question: Question, user_answer: dict) -> bool:
-    """Проверка ответа с учетом структуры БД"""
+    """Проверка ответа с учетом всех типов вопросов"""
     if question.question_type == "single-choice":
         return user_answer.get("answer") == question.correct_answer
+
+    elif question.question_type == "multiple-choice":
+        correct_answers = set(question.correct_answer)
+        user_answers = set(user_answer.get("answers", []))
+        return correct_answers == user_answers
+
+    elif question.question_type == "ordering":
+        return user_answer.get("order", []) == question.correct_answer
+
     elif question.question_type == "open-ended":
         return user_answer.get("text", "").strip().lower() == question.correct_answer.strip().lower()
-    return False
 
+    return False
