@@ -2,7 +2,7 @@ import json
 from database import execute, redis_client
 
 
-def get_leaderboard(number_of_users: int = 10) -> dict:
+def get_leaderboard(number_of_users: int = 100) -> dict:
     cache_key = f"leaderboard:{number_of_users}"
     cached = redis_client.get(cache_key)
     if cached:
@@ -24,6 +24,7 @@ def get_leaderboard(number_of_users: int = 10) -> dict:
         LIMIT %s
     """
     fund_data = execute(fund_query, (number_of_users,))
+    print(f"Fundamentals data: {fund_data}")
     alg_data = execute(alg_query, (number_of_users,))
 
     fundamentals = [
