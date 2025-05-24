@@ -49,6 +49,7 @@ class StatsOut(BaseModel):
 
 
 class ProfileUserOut(BaseModel):
+    id: int
     username: str
     avatar: Optional[str] = None
     bio: Optional[str] = None
@@ -103,6 +104,7 @@ def get_profile_by_username(username: str):
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
     return {
+        "id": user.get("id"),
         "username": user.get("username"),
         "avatar": user.get("avatar"),
         "bio": user.get("bio"),

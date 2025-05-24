@@ -1,15 +1,17 @@
 from services.achievement_service import check_and_award
-from fastapi import APIRouter, HTTPException, BackgroundTasks, File, Form, UploadFile, Header
+from services.user_service import save_user, change_db_users, get_user_by_email, \
+    delete_user_by_id, get_user_by_telegram, set_refresh_token
+from fastapi import APIRouter, HTTPException, BackgroundTasks, File, Form, UploadFile, Header, status
 from pydantic import BaseModel, EmailStr
 from enum import Enum
 import random
 import os
 import uuid
 import secrets
-from services.user_service import save_user, change_db_users, get_user_by_email, delete_user_by_id
 from security import create_access_token, decode_access_token, verify_password
 from jwt import ExpiredSignatureError, InvalidTokenError
 from services.email_service import send_verification_email
+from typing import Optional
 
 MAX_AVATAR_SIZE = 1024 * 300  # 300 KB
 MAX_USERNAME_LEN = 32
@@ -61,6 +63,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     username: str
+    telegram_username: Optional[str] = None
 
 
 class VerifyRequest(BaseModel):
@@ -93,6 +96,20 @@ class ResendCodeRequest(BaseModel):
     code_type: CodeType
 
 
+# New request models for Telegram functionality
+class CheckTelegramRequest(BaseModel):
+    telegram_username: str
+
+
+class LoginTelegramRequest(BaseModel):
+    telegram_username: str
+
+
+class LinkTelegramRequest(BaseModel):
+    telegram_username: str
+    email: EmailStr
+
+
 # Endpoints
 @router.post('/login')
 def login(data: LoginRequest, background_tasks: BackgroundTasks):
@@ -119,46 +136,47 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
     access_token = create_access_token(
         {'sub': data.email, 'user_id': user['id']})
     refresh_token = secrets.token_urlsafe(32)
-    from services.user_service import set_refresh_token
     set_refresh_token(user['id'], refresh_token)
     background_tasks.add_task(check_and_award, user['id'], 'login')
     return {'access_token': access_token,
             'token_type': 'bearer', 'refresh_token': refresh_token}
 
 
-@router.post('/register')
+@router.post('/register', status_code=status.HTTP_201_CREATED)
 def register(data: RegisterRequest, background_tasks: BackgroundTasks):
-    print(data)
+    # Validate username length
     if len(data.username) > MAX_USERNAME_LEN:
         raise HTTPException(
-            status_code=400, detail={
-                'code': ErrorCodes.USERNAME_LENGTH_INVALID})
+            status_code=400, detail={'code': ErrorCodes.USERNAME_LENGTH_INVALID})
+    # Validate email length
     if len(data.email) > MAX_EMAIL_LEN:
         raise HTTPException(
-            status_code=400, detail={
-                'code': ErrorCodes.EMAIL_LENGTH_INVALID})
+            status_code=400, detail={'code': ErrorCodes.EMAIL_LENGTH_INVALID})
+    # Check if user exists
     if get_user_by_email(data.email):
         raise HTTPException(
-            status_code=400, detail={
-                'code': ErrorCodes.USER_EXISTS})
+            status_code=400, detail={'code': ErrorCodes.USER_EXISTS})
+    # Validate password length
     if len(data.password) < 8 or len(data.password) > 32:
         raise HTTPException(
-            status_code=400, detail={
-                'code': ErrorCodes.PASSWORD_LENGTH_INVALID})
+            status_code=400, detail={'code': ErrorCodes.PASSWORD_LENGTH_INVALID})
+    # Generate verification code and save user
     code = generate_verification_code()
     if save_user(data.email, data.password, data.username, False, code):
         raise HTTPException(
-            status_code=500, detail={
-                'code': ErrorCodes.SAVING_FAILED})
+            status_code=500, detail={'code': ErrorCodes.SAVING_FAILED})
+    # Link Telegram username if provided
+    if data.telegram_username is not None:
+        if len(data.telegram_username) > MAX_TELEGRAM_LEN:
+            raise HTTPException(
+                status_code=400, detail={'code': ErrorCodes.TELEGRAM_LENGTH_INVALID})
+        if change_db_users(data.email, ('telegram',
+                           data.telegram_username)) != 'success':
+            raise HTTPException(
+                status_code=500, detail={'code': ErrorCodes.SAVING_FAILED})
+    # Send verification email
     background_tasks.add_task(send_verification_email, data.email, code)
-    user = get_user_by_email(data.email)
-    refresh_token = secrets.token_urlsafe(32)
-    from services.user_service import set_refresh_token
-    set_refresh_token(user['id'], refresh_token)
-    print(f'Registration code for {data.email}: {code}')
-    return {'message': {'code': ErrorCodes.REGISTRATION_SUCCESS},
-            'verification_code': code,
-            'refresh_token': refresh_token}
+    return {'pending_verification': True}
 
 
 @router.post('/verify')
@@ -413,3 +431,43 @@ def refresh_token_endpoint(data: RefreshRequest):
     access_token = create_access_token(
         {'sub': user['email'], 'user_id': user['id']})
     return {'access_token': access_token, 'token_type': 'bearer'}
+
+
+@router.post('/check-telegram')
+def check_telegram(data: CheckTelegramRequest):
+    exists = get_user_by_telegram(data.telegram_username) is not None
+    return {'exists': exists}
+
+
+@router.post('/login-telegram')
+def login_telegram(data: LoginTelegramRequest,
+                   background_tasks: BackgroundTasks):
+    user = get_user_by_telegram(data.telegram_username)
+    if not user:
+        raise HTTPException(
+            status_code=401, detail={
+                'code': ErrorCodes.INVALID_CREDENTIALS})
+    if not user['verified']:
+        raise HTTPException(
+            status_code=401, detail={
+                'code': ErrorCodes.ACCOUNT_NOT_VERIFIED})
+    access_token = create_access_token(
+        {'sub': user['email'], 'user_id': user['id']})
+    refresh_token = secrets.token_urlsafe(32)
+    set_refresh_token(user['id'], refresh_token)
+    background_tasks.add_task(check_and_award, user['id'], 'login')
+    return {'username': user['username'],
+            'access_token': access_token, 'refresh_token': refresh_token}
+
+
+@router.post('/link-telegram')
+def link_telegram(data: LinkTelegramRequest):
+    user = get_user_by_email(data.email)
+    if not user:
+        raise HTTPException(status_code=404, detail='email not registered')
+    if change_db_users(data.email, ('telegram',
+                       data.telegram_username)) != 'success':
+        raise HTTPException(
+            status_code=500, detail={
+                'code': ErrorCodes.SAVING_FAILED})
+    return {'linked': True}

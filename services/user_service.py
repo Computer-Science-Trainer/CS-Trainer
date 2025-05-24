@@ -220,3 +220,24 @@ def get_user_by_id(user_id: int) -> dict | None:
     keys = ['id', 'email', 'password', 'username', 'achievement', 'avatar',
             'verified', 'verification_code', 'telegram', 'github', 'website', 'bio']
     return dict(zip(keys, row))
+
+
+def get_user_by_telegram(telegram_username: str) -> dict | None:
+    """
+    Возвращает пользователя по Telegram-username или None.
+    """
+    row = execute(
+        """
+        SELECT id, email, password, username, achievement, avatar, verified, verification_code,
+               telegram, github, website, bio
+        FROM users WHERE telegram = %s
+        """,
+        (telegram_username,), fetchone=True
+    )
+    if not row:
+        return None
+    keys = [
+        'id', 'email', 'password', 'username', 'achievement', 'avatar',
+        'verified', 'verification_code', 'telegram', 'github', 'website', 'bio'
+    ]
+    return dict(zip(keys, row))
