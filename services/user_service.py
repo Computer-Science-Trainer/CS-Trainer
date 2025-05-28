@@ -120,30 +120,26 @@ def save_user_test(user_id: int, test_type: str, section: str,
 
 def get_user_tests(user_id: int) -> list[dict]:
     """Retrieve all test sessions for a user, including topic codes"""
+    # Fetch all tests for user
     rows = execute(
         "SELECT id, type, section, passed, total, average, earned_score, topics, created_at"
         " FROM tests WHERE user_id = %s ORDER BY created_at DESC",
         (user_id,)
     )
-    result = []
+    tests = []
+    all_topic_ids: set[int] = set()
     for test_id, test_type, sect, passed, total, average, earned_score, topics_json, created_at in rows:
-        raw_ids = json.loads(topics_json)
+        # Parse topic ID list
+        try:
+            raw_ids = json.loads(topics_json) if topics_json else []
+        except json.JSONDecodeError:
+            raw_ids = []
         if isinstance(raw_ids, list):
             topic_ids = raw_ids
-        elif raw_ids is None:
-            topic_ids = []
         else:
             topic_ids = [raw_ids]
-        if topic_ids:
-            placeholders = ",".join(["%s"] * len(topic_ids))
-            rows2 = execute(
-                f"SELECT label FROM topics WHERE id IN ({placeholders})",
-                tuple(topic_ids)
-            )
-            topic_codes = [str(r[0]) for r in rows2]
-        else:
-            topic_codes = []
-        result.append({
+        all_topic_ids.update(topic_ids)
+        tests.append({
             "id": test_id,
             "type": test_type,
             "section": sect,
@@ -151,8 +147,33 @@ def get_user_tests(user_id: int) -> list[dict]:
             "total": total,
             "average": average,
             "earned_score": earned_score,
-            "topics": topic_codes,
+            "topic_ids": topic_ids,
             "created_at": created_at
+        })
+    # Bulk fetch topic labels
+    if all_topic_ids:
+        placeholders = ",".join(["%s"] * len(all_topic_ids))
+        rows2 = execute(
+            f"SELECT id, label FROM topics WHERE id IN ({placeholders})",
+            tuple(all_topic_ids)
+        )
+        label_map = {r[0]: str(r[1]) for r in rows2}
+    else:
+        label_map = {}
+    # Build final result list
+    result = []
+    for test in tests:
+        topic_codes = [label_map.get(tid) for tid in test["topic_ids"] if tid in label_map]
+        result.append({
+            "id": test["id"],
+            "type": test["type"],
+            "section": test["section"],
+            "passed": test["passed"],
+            "total": test["total"],
+            "average": test["average"],
+            "earned_score": test["earned_score"],
+            "topics": topic_codes,
+            "created_at": test["created_at"]
         })
     return result
 

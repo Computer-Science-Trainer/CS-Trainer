@@ -10,6 +10,7 @@ from routers.leaderboard_router import router as leaderboard_router
 from routers.oauth_router import router as oauth_router
 from routers.topics_router import router as topics_router
 from routers.admin_router import router as admin_router
+from routers.tests_router import router as tests_router
 
 app = FastAPI()
 
@@ -36,6 +37,7 @@ app.include_router(user_router, prefix="/api")
 app.include_router(leaderboard_router, prefix="/api")
 app.include_router(topics_router, prefix="/api")
 app.include_router(admin_router, prefix="/api/admin")
+app.include_router(tests_router, prefix="/api/tests")
 
 
 if __name__ == "__main__":
