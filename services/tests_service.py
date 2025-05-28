@@ -18,7 +18,9 @@ def start_test(user_id: int, section: str, labels: list[str]) -> int:
     section_map = {"FI": "fundamentals", "AS": "algorithms"}
     db_section = section_map.get(section)
     if not db_section:
-        raise HTTPException(status_code=400, detail={"code": "invalid_section"})
+        raise HTTPException(
+            status_code=400, detail={
+                "code": "invalid_section"})
     save_user_test(user_id, "practice", db_section, 0, 0, topic_ids)
     row = execute(
         "SELECT id FROM tests WHERE user_id = %s ORDER BY created_at DESC LIMIT 1",
@@ -162,7 +164,8 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
         for q in questions
     )
     moscow_tz = datetime.timezone(datetime.timedelta(hours=3))
-    end_time = datetime.datetime.now(moscow_tz) + datetime.timedelta(minutes=total_minutes)
+    end_time = datetime.datetime.now(
+        moscow_tz) + datetime.timedelta(minutes=total_minutes)
     # record questions and end_time into DB
     question_ids = [q["id"] for q in questions]
     execute(
@@ -235,25 +238,66 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
             passed, total, average, earned_score = test_row
         else:
             passed = total = average = earned_score = 0
-        return {"passed": passed, "total": total, "average": average, "earned_score": earned_score}
+        return {"passed": passed, "total": total,
+                "average": average, "earned_score": earned_score}
     submitted = {ans.question_id: ans.answer for ans in answers}
     q_ids = list(submitted.keys())
     if not q_ids:
-        raise HTTPException(status_code=400, detail={"code": "no_answers_provided"})
+        raise HTTPException(
+            status_code=400, detail={
+                "code": "no_answers_provided"})
     placeholders = ",".join(["%s"] * len(q_ids))
     rows = execute(
-        f"SELECT id, correct_answer, difficulty FROM current_questions WHERE id IN ({placeholders})",
+        f"SELECT id, correct_answer, difficulty, question_type FROM current_questions WHERE id IN ({placeholders})",
         tuple(q_ids)
     )
+    # evaluate answers, collect correct and user answer details
     passed = 0
     weighted_score = 0
     weight_map = {"easy": 1, "medium": 2, "hard": 5}
-    for qid, correct, difficulty in rows:
-        correct_str = str(correct).strip() if correct is not None else ''
-        user_ans_str = str(submitted.get(qid, '')).strip()
-        if correct_str and user_ans_str and user_ans_str == correct_str:
+    correct_answers = []
+    user_answers_list = []
+    for qid, correct, difficulty, qtype in rows:
+        if isinstance(correct, (list, dict)):
+            correct_val = correct
+        else:
+            correct_val = str(correct).strip() if correct is not None else ''
+        user_raw = submitted.get(qid, '')
+        if isinstance(user_raw, (list, dict)):
+            user_ans_val = user_raw
+        else:
+            user_ans_val = str(user_raw).strip(
+            ) if user_raw is not None else ''
+
+        if qtype == "multiple-choice":
+            correct_list = [c.strip().lower()
+                            for c in (correct_val if isinstance(correct_val, list) else str(correct_val).split(',')) if c.strip()]
+            user_list = [u.strip().lower()
+                         for u in (user_ans_val if isinstance(user_ans_val, list) else str(user_ans_val).split(',')) if u.strip()]
+            is_correct = set(correct_list) == set(user_list)
+            corr_ans = correct_list
+            usr_ans = user_list
+        else:
+            is_correct = bool(
+                correct_val and user_ans_val and
+                str(user_ans_val).lower() == str(correct_val).lower()
+            )
+            corr_ans = correct_val
+            usr_ans = user_ans_val
+
+        if is_correct:
             passed += 1
             weighted_score += weight_map.get(difficulty, 0)
+
+        correct_answers.append({
+            "question_id": qid,
+            "correct_answer": corr_ans
+        })
+        user_answers_list.append({
+            "question_id": qid,
+            "user_answer": usr_ans,
+            "is_correct": is_correct
+        })
     total = len(answers)
     average = passed / total if total else 0.0
     # update test record
@@ -274,4 +318,84 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
     moscow_tz = datetime.timezone(datetime.timedelta(hours=3))
     now_moscow = datetime.datetime.now(moscow_tz)
     execute("UPDATE tests SET end_time = %s WHERE id = %s", (now_moscow, test_id))
-    return {"passed": passed, "total": total, "average": average, "earned_score": weighted_score}
+    # store detailed answers in test_answers table
+    for ans in user_answers_list:
+        usr_json = json.dumps(ans["user_answer"])
+        corr_val = next(c["correct_answer"]
+                        for c in correct_answers if c["question_id"] == ans["question_id"])
+        corr_json = json.dumps(corr_val)
+        execute(
+            "INSERT INTO test_answers (test_id, question_id, user_answer, correct_answer, is_correct) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (test_id, ans["question_id"], usr_json,
+             corr_json, ans["is_correct"])
+        )
+    return {
+        "passed": passed,
+        "total": total,
+        "average": average,
+        "earned_score": weighted_score,
+        "correct_answers": correct_answers,
+        "user_answers": user_answers_list
+    }
+
+
+# Add retrieval of stored answers for a test
+def get_test_answers(user_id: int, test_id: int) -> dict:
+    # verify ownership
+    row = execute(
+        "SELECT user_id FROM tests WHERE id = %s",
+        (test_id,), fetchone=True
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "test_not_found"})
+    if row[0] != user_id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden"})
+    # fetch detailed answers joined with question metadata
+    rows = execute(
+        "SELECT ta.question_id, ta.correct_answer, ta.user_answer, ta.is_correct, cq.question_type, cq.difficulty "
+        "FROM test_answers ta "
+        "JOIN current_questions cq ON ta.question_id = cq.id "
+        "WHERE ta.test_id = %s ORDER BY ta.id",
+        (test_id,)
+    )
+    weight_map = {"easy": 1, "medium": 2, "hard": 5}
+    answer_list = []
+    for qid, corr, ua, ic, qtype, diff in rows:
+        # deserialize JSON stored answers
+        try:
+            correct_val = json.loads(corr) if corr else ''
+        except (TypeError, json.JSONDecodeError):
+            correct_val = corr or ''
+        try:
+            user_val = json.loads(ua) if ua else ''
+        except (TypeError, json.JSONDecodeError):
+            user_val = ua or ''
+
+        # format list outputs with quoted elements, dicts as JSON, else as
+        # string
+        if isinstance(correct_val, list):
+            correct_out = ', '.join(f'"{v}"' for v in correct_val)
+        elif isinstance(correct_val, dict):
+            correct_out = json.dumps(correct_val)
+        else:
+            correct_out = str(correct_val)
+        if isinstance(user_val, list):
+            user_out = ', '.join(f'"{v}"' for v in user_val)
+        elif isinstance(user_val, dict):
+            user_out = json.dumps(user_val)
+        else:
+            user_out = str(user_val)
+
+        is_correct = bool(ic)
+        points = weight_map.get(diff, 0) if is_correct else 0
+        answer_list.append({
+            "question_id": qid,
+            "question_type": qtype,
+            "difficulty": diff,
+            "user_answer": user_out,
+            "correct_answer": correct_out,
+            "is_correct": is_correct,
+            "points_awarded": points
+        })
+    return {"answers": answer_list}

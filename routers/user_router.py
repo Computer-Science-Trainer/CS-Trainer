@@ -7,10 +7,8 @@ from security import decode_access_token
 from jwt import ExpiredSignatureError, InvalidTokenError
 from typing import List, Optional
 import datetime
-import json
 from database import execute
 from services.admin_service import is_user_admin
-import random
 
 router = APIRouter()
 

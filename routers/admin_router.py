@@ -51,7 +51,6 @@ class QuestionIn(BaseModel):
     difficulty: str
     options: List[str]
     correct_answer: str
-    sample_answer: Optional[str]
     terms_accepted: bool
     topic_code: str
     proposer_id: int
@@ -65,7 +64,6 @@ class QuestionOut(BaseModel):
     difficulty: str
     options: List[str]
     correct_answer: str
-    sample_answer: Optional[str] = None
     terms_accepted: bool
     topic_code: str
     proposer_id: Optional[int] = None
