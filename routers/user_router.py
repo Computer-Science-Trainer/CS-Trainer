@@ -242,29 +242,26 @@ def user_topic_recommendations(username: str):
     user = get_user_by_username(username)
     if not user:
         raise HTTPException(status_code=404, detail={"code": "user_not_found"})
-    user_id = user["id"]
-    tests = get_user_tests(user_id)
-    topic_stats = {}
-    topic_counts = {}
-    for test in tests:
-        if not test["topics"] or not test["total"]:
+    topic_scores, topic_counts = {}, {}
+    for test in get_user_tests(user["id"]):
+        if not test.get("topics") or not test["total"]:
             continue
         for topic in test["topics"]:
-            topic_stats.setdefault(topic, 0)
-            topic_counts.setdefault(topic, 0)
-            topic_stats[topic] += test["passed"] / test["total"]
-            topic_counts[topic] += 1
-    topic_averages = []
-    for topic, total_score in topic_stats.items():
-        avg = total_score / topic_counts[topic] if topic_counts[topic] else 0
-        topic_averages.append((topic, avg))
-    bad_topics = [t for t in topic_averages if t[1] < 0.99]
-    if bad_topics:
-        bad_topics.sort(key=lambda x: x[1])
-        recommendations = [t[0] for t in bad_topics[:6]]
-    else:
-        rows = execute(
-            "SELECT label FROM topics ORDER BY RAND() LIMIT 6"
-        )
-        recommendations = [r[0] for r in rows]
+            topic_scores[topic] = topic_scores.get(topic, 0) + test["passed"] / test["total"]
+            topic_counts[topic] = topic_counts.get(topic, 0) + 1
+    topic_avgs = {t: topic_scores[t] / topic_counts[t] for t in topic_scores}
+    recommendations = [t for t, _ in sorted(topic_avgs.items(), key=lambda x: x[1])[:6]]
+    if len(recommendations) < 6:
+        needed = 6 - len(recommendations)
+        if recommendations:
+            placeholders = ",".join(["%s"] * len(recommendations))
+            sql = f"SELECT label FROM topics WHERE label NOT IN ({placeholders}) ORDER BY RAND() LIMIT %s"
+            params = recommendations + [needed]
+        else:
+            sql = "SELECT label FROM topics ORDER BY RAND() LIMIT %s"
+            params = [needed]
+        rows = execute(sql, params)
+        for r in rows:
+            if r[0] not in recommendations:
+                recommendations.append(r[0])
     return recommendations
