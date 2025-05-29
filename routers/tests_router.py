@@ -58,9 +58,8 @@ class TestResult(BaseModel):
     average: float
     earned_score: int
 
+
 # Models for retrieving stored answers
-
-
 class AnswerDetailOut(BaseModel):
     question_id: int
     question_type: str
@@ -74,9 +73,8 @@ class AnswerDetailOut(BaseModel):
 class TestAnswersOut(BaseModel):
     answers: List[AnswerDetailOut]
 
+
 # Authorization helper
-
-
 def authorize(authorization: str) -> int:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail={"code": "missing_token"})

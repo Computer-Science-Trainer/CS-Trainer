@@ -2,6 +2,20 @@ import json
 import os
 from database import execute
 from typing import Dict, Any, List, Optional
+from services.validation_service import (
+    validate_question_text,
+    validate_option_list
+)
+
+
+def validate_question_data(q: Any):
+    # centralize validation
+    validate_question_text(q.question_text)
+    validate_option_list(q.question_type, q.options, code_prefix='option')
+    validate_option_list(
+        q.question_type,
+        q.correct_answer,
+        code_prefix='correct_answer')
 
 
 def get_current_questions() -> List[Dict[str, Any]]:
@@ -13,7 +27,6 @@ def get_current_questions() -> List[Dict[str, Any]]:
     for r in rows:
         opts = json.loads(r[4])
         corr = json.loads(r[5])
-        # handle double-encoded JSON strings
         if isinstance(corr, str):
             corr = json.loads(corr)
         result.append({
@@ -46,9 +59,9 @@ def get_proposed_questions() -> List[Dict[str, Any]]:
 
 
 def add_question(q: Any) -> Dict[str, Any]:
+    validate_question_data(q)
     options_json = json.dumps(q.options, ensure_ascii=False)
     correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
-    print(q)
     execute(
         "INSERT INTO current_questions (question_text, question_type, difficulty, "
         "options, correct_answer, topic_code, proposer_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
@@ -81,6 +94,7 @@ def update_question(question_id: int, q: Any) -> Optional[Dict[str, Any]]:
     )
     if not exists:
         return None
+    validate_question_data(q)
     options_json = json.dumps(q.options, ensure_ascii=False)
     correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
     execute(
@@ -177,6 +191,7 @@ def reject_proposed_question(question_id: int) -> bool:
 
 
 def add_proposed_question(q: Any) -> Dict[str, Any]:
+    validate_question_data(q)
     options_json = json.dumps(q.options, ensure_ascii=False)
     correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
     execute(
@@ -211,6 +226,7 @@ def update_proposed_question(
     )
     if not exists:
         return None
+    validate_question_data(q)
     options_json = json.dumps(q.options, ensure_ascii=False)
     correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
     execute(

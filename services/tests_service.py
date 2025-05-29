@@ -32,7 +32,6 @@ def start_test(user_id: int, section: str, labels: list[str]) -> int:
 
 
 def get_test_questions(user_id: int, test_id: int) -> dict:
-    # fetch test topics and existing questions
     row = execute(
         "SELECT topics, questions, created_at FROM tests WHERE id = %s AND user_id = %s",
         (test_id, user_id), fetchone=True
@@ -43,7 +42,6 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
     questions_json = row[1]
     created_at = row[2]
     question_ids = json.loads(questions_json) if questions_json else []
-    # if questions exist, load them
     if question_ids:
         placeholders = ",".join(["%s"] * len(question_ids))
         rows = execute(
@@ -243,15 +241,32 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
                 "code": "no_answers_provided"})
     placeholders = ",".join(["%s"] * len(submitted))
     rows = execute(
-        f"SELECT id, correct_answer, difficulty FROM current_questions WHERE id IN ({placeholders})",
+        f"SELECT id, correct_answer, difficulty, question_type "
+        f"FROM current_questions WHERE id IN ({placeholders})",
         tuple(submitted.keys())
     )
+    qtype_map = {r[0]: r[3] for r in rows}
+    for qid, ans_list in submitted.items():
+        qtype = qtype_map.get(qid)
+        if qtype == 'open-ended':
+            if len(ans_list) != 1 or len(ans_list[0] or '') > 128:
+                raise HTTPException(
+                    status_code=400, detail={
+                        "code": "answer_too_long"})
+        elif len(ans_list) > 8:
+            raise HTTPException(
+                status_code=400, detail={
+                    "code": "too_many_answers"})
+        else:
+            if any(len(item) > 256 for item in ans_list):
+                raise HTTPException(
+                    status_code=400, detail={"code": "answer_item_too_long"})
     passed = 0
     weighted_score = 0
     weight_map = {"easy": 1, "medium": 2, "hard": 5}
     correct_answers = []
     user_answers_list = []
-    for i, (qid, correct_json, difficulty) in enumerate(rows):
+    for i, (qid, correct_json, difficulty, question_type) in enumerate(rows):
         correct_val = json.loads(correct_json)
         user_ans = submitted[qid]
         is_correct = all(
