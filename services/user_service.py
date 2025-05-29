@@ -163,7 +163,8 @@ def get_user_tests(user_id: int) -> list[dict]:
     # Build final result list
     result = []
     for test in tests:
-        topic_codes = [label_map.get(tid) for tid in test["topic_ids"] if tid in label_map]
+        topic_codes = [label_map.get(tid)
+                       for tid in test["topic_ids"] if tid in label_map]
         result.append({
             "id": test["id"],
             "type": test["type"],

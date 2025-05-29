@@ -45,26 +45,22 @@ router = APIRouter(dependencies=[Depends(admin_required)])
 
 
 class QuestionIn(BaseModel):
-    title: str
     question_text: str
     question_type: str
     difficulty: str
     options: List[str]
-    correct_answer: str
-    terms_accepted: bool
+    correct_answer: List[str]
     topic_code: str
     proposer_id: int
 
 
 class QuestionOut(BaseModel):
     id: int
-    title: str
     question_text: str
     question_type: str
     difficulty: str
     options: List[str]
-    correct_answer: str
-    terms_accepted: bool
+    correct_answer: List[str]
     topic_code: str
     proposer_id: Optional[int] = None
 

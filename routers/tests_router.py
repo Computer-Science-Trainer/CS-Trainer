@@ -23,7 +23,6 @@ class TestStartOut(BaseModel):
 
 class QuestionOut(BaseModel):
     id: int
-    title: str
     question_text: str
     question_type: str
     difficulty: str
@@ -47,7 +46,7 @@ class QuestionsWithEndOut(BaseModel):
 
 class AnswerIn(BaseModel):
     question_id: int
-    answer: str
+    answer: List[str]
 
 
 class TestSubmissionIn(BaseModel):

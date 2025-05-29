@@ -58,7 +58,6 @@ class ProfileUserOut(BaseModel):
 
 class QuestionOut(BaseModel):
     id: int
-    title: str
     question_text: str
     question_type: str
     difficulty: str

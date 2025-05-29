@@ -6,59 +6,70 @@ from typing import Dict, Any, List, Optional
 
 def get_current_questions() -> List[Dict[str, Any]]:
     rows = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, "
-        "correct_answer, terms_accepted, topic_code, proposer_id FROM current_questions"
+        "SELECT id, question_text, question_type, difficulty, options, "
+        "correct_answer, topic_code, proposer_id FROM current_questions"
     )
-    return [
-        {"id": r[0], "title": r[1],
-         "question_text": r[2], "question_type": r[3], "difficulty": r[4],
-         "options": json.loads(r[5]), "correct_answer": r[6],
-         "terms_accepted": bool(r[7]), "topic_code": r[8],
-         "proposer_id": r[9]}
-        for r in rows
-    ]
+    result = []
+    for r in rows:
+        opts = json.loads(r[4])
+        corr = json.loads(r[5])
+        # handle double-encoded JSON strings
+        if isinstance(corr, str):
+            corr = json.loads(corr)
+        result.append({
+            "id": r[0],
+            "question_text": r[1], "question_type": r[2], "difficulty": r[3],
+            "options": opts, "correct_answer": corr,
+            "topic_code": r[6], "proposer_id": r[7]
+        })
+    return result
 
 
 def get_proposed_questions() -> List[Dict[str, Any]]:
     rows = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, correct_answer, "
-        "terms_accepted, topic_code, proposer_id FROM proposed_questions"
+        "SELECT id, question_text, question_type, difficulty, options, correct_answer, "
+        "topic_code, proposer_id FROM proposed_questions"
     )
-    return [
-        {"id": r[0], "title": r[1],
-         "question_text": r[2], "question_type": r[3], "difficulty": r[4],
-         "options": json.loads(r[5]), "correct_answer": r[6],
-         "terms_accepted": bool(r[7]), "topic_code": r[8], "proposer_id": r[9]}
-        for r in rows
-    ]
+    result = []
+    for r in rows:
+        opts = json.loads(r[4])
+        corr = json.loads(r[5])
+        if isinstance(corr, str):
+            corr = json.loads(corr)
+        result.append({
+            "id": r[0],
+            "question_text": r[1], "question_type": r[2], "difficulty": r[3],
+            "options": opts, "correct_answer": corr,
+            "topic_code": r[6], "proposer_id": r[7]
+        })
+    return result
 
 
 def add_question(q: Any) -> Dict[str, Any]:
-    options_json = json.dumps(q.options)
+    options_json = json.dumps(q.options, ensure_ascii=False)
+    correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
+    print(q)
     execute(
-        "INSERT INTO current_questions (title, question_text, question_type, difficulty, options, "
-        "correct_answer, terms_accepted, topic_code, proposer_id)"
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (q.title,
-         q.question_text,
+        "INSERT INTO current_questions (question_text, question_type, difficulty, "
+        "options, correct_answer, topic_code, proposer_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (q.question_text,
          q.question_type,
          q.difficulty,
          options_json,
-         q.correct_answer,
-         q.terms_accepted,
+         correct_answer_json,
          q.topic_code,
          q.proposer_id)
     )
     row = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, correct_answer, terms_accepted, "
-        "topic_code, proposer_id FROM current_questions ORDER BY id DESC LIMIT 1",
+        "SELECT id, question_text, question_type, difficulty, options, correct_answer, topic_code, proposer_id "
+        "FROM current_questions ORDER BY id DESC LIMIT 1",
         fetchone=True
     )
     return {
-        "id": row[0], "title": row[1],
-        "question_text": row[2], "question_type": row[3], "difficulty": row[4],
-        "options": json.loads(row[5]), "correct_answer": row[6],
-        "terms_accepted": bool(row[7]), "topic_code": row[8], "proposer_id": row[9]
+        "id": row[0],
+        "question_text": row[1], "question_type": row[2], "difficulty": row[3],
+        "options": json.loads(row[4]), "correct_answer": json.loads(row[5]),
+        "topic_code": row[6], "proposer_id": row[7]
     }
 
 
@@ -70,32 +81,30 @@ def update_question(question_id: int, q: Any) -> Optional[Dict[str, Any]]:
     )
     if not exists:
         return None
-    options_json = json.dumps(q.options)
+    options_json = json.dumps(q.options, ensure_ascii=False)
+    correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
     execute(
-        "UPDATE current_questions SET title = %s, question_text = %s, question_type = %s, difficulty = %s, "
-        "options = %s, correct_answer = %s, terms_accepted = %s, topic_code = %s, proposer_id = %s WHERE id = %s",
-        (q.title,
-         q.question_text,
+        "UPDATE current_questions SET question_text = %s, question_type = %s, difficulty = %s, "
+        "options = %s, correct_answer = %s, topic_code = %s, proposer_id = %s WHERE id = %s",
+        (q.question_text,
          q.question_type,
          q.difficulty,
          options_json,
-         q.correct_answer,
-         q.terms_accepted,
+         correct_answer_json,
          q.topic_code,
          q.proposer_id,
          question_id)
     )
     row = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, correct_answer, terms_accepted, "
-        "topic_code, proposer_id FROM current_questions WHERE id = %s",
+        "SELECT id, question_text, question_type, difficulty, options, correct_answer, topic_code, proposer_id "
+        "FROM current_questions WHERE id = %s",
         (question_id,),
         fetchone=True
     )
-    return {"id": row[0], "title": row[1],
-            "question_text": row[2], "question_type": row[3], "difficulty": row[4],
-            "options": json.loads(row[5]), "correct_answer": row[6],
-            "terms_accepted": bool(row[7]), "topic_code": row[8],
-            "proposer_id": row[9]}
+    return {"id": row[0],
+            "question_text": row[1], "question_type": row[2], "difficulty": row[3],
+            "options": json.loads(row[4]), "correct_answer": json.loads(row[5]),
+            "topic_code": row[6], "proposer_id": row[7]}
 
 
 def delete_question(question_id: int) -> bool:
@@ -115,27 +124,25 @@ def delete_question(question_id: int) -> bool:
 
 def approve_proposed_question(question_id: int) -> Optional[Dict[str, Any]]:
     row = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, correct_answer, terms_accepted, "
-        "topic_code, proposer_id FROM proposed_questions WHERE id = %s",
+        "SELECT id, question_text, question_type, difficulty, options, correct_answer, topic_code, proposer_id "
+        "FROM proposed_questions WHERE id = %s",
         (question_id,),
         fetchone=True
     )
     if not row:
         return None
     (
-        _, title, question_text, question_type, difficulty, options_json, correct_answer,
-        terms_accepted, topic_code, proposer_id
+        _, question_text, question_type, difficulty, options_json, correct_answer,
+        topic_code, proposer_id
     ) = row
     execute(
-        "INSERT INTO current_questions (title, question_text, question_type, difficulty, options, correct_answer, "
-        "terms_accepted, topic_code, proposer_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (title,
-         question_text,
+        "INSERT INTO current_questions (question_text, question_type, difficulty, options, correct_answer, "
+        "topic_code, proposer_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (question_text,
          question_type,
          difficulty,
          options_json,
          correct_answer,
-         terms_accepted,
          topic_code,
          proposer_id)
     )
@@ -144,14 +151,14 @@ def approve_proposed_question(question_id: int) -> Optional[Dict[str, Any]]:
         (question_id,)
     )
     new = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, correct_answer, terms_accepted, "
-        "topic_code, proposer_id FROM current_questions ORDER BY id DESC LIMIT 1",
+        "SELECT id, question_text, question_type, difficulty, options, correct_answer, topic_code, proposer_id "
+        "FROM current_questions ORDER BY id DESC LIMIT 1",
         fetchone=True
     )
-    return {"id": new[0], "title": new[1],
-            "question_text": new[2], "question_type": new[3], "difficulty": new[4],
-            "options": json.loads(new[5]), "correct_answer": new[6],
-            "terms_accepted": bool(new[7]), "topic_code": new[8], "proposer_id": new[9]}
+    return {"id": new[0],
+            "question_text": new[1], "question_type": new[2], "difficulty": new[3],
+            "options": json.loads(new[4]), "correct_answer": json.loads(new[5]),
+            "topic_code": new[6], "proposer_id": new[7]}
 
 
 def reject_proposed_question(question_id: int) -> bool:
@@ -170,30 +177,29 @@ def reject_proposed_question(question_id: int) -> bool:
 
 
 def add_proposed_question(q: Any) -> Dict[str, Any]:
-    options_json = json.dumps(q.options)
+    options_json = json.dumps(q.options, ensure_ascii=False)
+    correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
     execute(
-        "INSERT INTO proposed_questions (title, question_text, question_type, difficulty, options, "
-        "correct_answer, terms_accepted, topic_code, proposer_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (q.title,
-         q.question_text,
+        "INSERT INTO proposed_questions (question_text, question_type, difficulty, options, "
+        "correct_answer, topic_code, proposer_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (q.question_text,
          q.question_type,
          q.difficulty,
          options_json,
-         q.correct_answer,
-         q.terms_accepted,
+         correct_answer_json,
          q.topic_code,
          q.proposer_id)
     )
     row = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, correct_answer, terms_accepted, "
-        "topic_code, proposer_id FROM proposed_questions ORDER BY id DESC LIMIT 1",
+        "SELECT id, question_text, question_type, difficulty, options, correct_answer, topic_code, proposer_id "
+        "FROM proposed_questions ORDER BY id DESC LIMIT 1",
         fetchone=True
     )
     return {
-        "id": row[0], "title": row[1],
-        "question_text": row[2], "question_type": row[3], "difficulty": row[4],
-        "options": json.loads(row[5]), "correct_answer": row[6],
-        "terms_accepted": bool(row[7]), "topic_code": row[8], "proposer_id": row[9]
+        "id": row[0],
+        "question_text": row[1], "question_type": row[2], "difficulty": row[3],
+        "options": json.loads(row[4]), "correct_answer": json.loads(row[5]),
+        "topic_code": row[6], "proposer_id": row[7]
     }
 
 
@@ -205,23 +211,24 @@ def update_proposed_question(
     )
     if not exists:
         return None
-    options_json = json.dumps(q.options)
+    options_json = json.dumps(q.options, ensure_ascii=False)
+    correct_answer_json = json.dumps(q.correct_answer, ensure_ascii=False)
     execute(
-        "UPDATE proposed_questions SET title=%s, question_text=%s, question_type=%s, difficulty=%s, options=%s, "
-        "correct_answer=%s, terms_accepted=%s, topic_code=%s, proposer_id=%s WHERE id=%s",
-        (q.title, q.question_text, q.question_type, q.difficulty, options_json,
-         q.correct_answer, q.terms_accepted, q.topic_code, q.proposer_id, question_id)
+        "UPDATE proposed_questions SET question_text=%s, question_type=%s, difficulty=%s, options=%s, "
+        "correct_answer=%s, topic_code=%s, proposer_id=%s WHERE id=%s",
+        (q.question_text, q.question_type, q.difficulty, options_json,
+         correct_answer_json, q.topic_code, q.proposer_id, question_id)
     )
     row = execute(
-        "SELECT id, title, question_text, question_type, difficulty, options, correct_answer, terms_accepted, "
-        "topic_code, proposer_id FROM proposed_questions WHERE id = %s",
+        "SELECT id, question_text, question_type, difficulty, options, correct_answer, topic_code, proposer_id "
+        "FROM proposed_questions WHERE id = %s",
         (question_id,), fetchone=True
     )
     return {
-        "id": row[0], "title": row[1],
-        "question_text": row[2], "question_type": row[3], "difficulty": row[4],
-        "options": json.loads(row[5]), "correct_answer": row[6],
-        "terms_accepted": bool(row[7]), "topic_code": row[8], "proposer_id": row[9]
+        "id": row[0],
+        "question_text": row[1], "question_type": row[2], "difficulty": row[3],
+        "options": json.loads(row[4]), "correct_answer": json.loads(row[5]),
+        "topic_code": row[6], "proposer_id": row[7]
     }
 
 

@@ -47,7 +47,7 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
     if question_ids:
         placeholders = ",".join(["%s"] * len(question_ids))
         rows = execute(
-            f"SELECT id, title, question_text, question_type, difficulty, options "
+            f"SELECT id, question_text, question_type, difficulty, options "
             f"FROM current_questions WHERE id IN ({placeholders})",
             tuple(question_ids)
         )
@@ -58,11 +58,8 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
             if r:
                 questions.append({
                     "id": r[0],
-                    "title": r[1],
-                    "question_text": r[2],
-                    "question_type": r[3],
-                    "difficulty": r[4],
-                    "options": json.loads(r[5]) if r[5] else []
+                    "question_text": r[1], "question_type": r[2], "difficulty": r[3],
+                    "options": json.loads(r[4]) if r[4] else []
                 })
         # load topics labels
         topics = []
@@ -118,7 +115,7 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
             )
         placeholders2 = ",".join(["%s"] * len(labels))
         all_topic_qs = execute(
-            f"SELECT id, title, question_text, question_type, difficulty, options "
+            f"SELECT id, question_text, question_type, difficulty, options "
             f"FROM current_questions WHERE topic_code IN ({placeholders2})",
             tuple(labels)
         )
@@ -130,28 +127,27 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
             if selected:
                 excl_ph = ",".join(["%s"] * len(selected))
                 more = execute(
-                    f"SELECT id, title, question_text, question_type, difficulty, options "
+                    f"SELECT id, question_text, question_type, difficulty, options "
                     f"FROM current_questions WHERE id NOT IN ({excl_ph}) "
                     "ORDER BY RAND() LIMIT %s",
                     tuple([q[0] for q in selected]) + (needed,)
                 )
             else:
                 more = execute(
-                    "SELECT id, title, question_text, question_type, difficulty, options "
+                    "SELECT id, question_text, question_type, difficulty, options "
                     "FROM current_questions ORDER BY RAND() LIMIT %s",
                     (needed,)
                 )
             rows = selected + list(more)
     else:
         rows = execute(
-            "SELECT id, title, question_text, question_type, difficulty, options "
+            "SELECT id, question_text, question_type, difficulty, options "
             "FROM current_questions ORDER BY RAND() LIMIT 10"
         )
     questions = []
-    for q_id, title, text, qtype, diff, opts_json in rows:
+    for q_id, text, qtype, diff, opts_json in rows:
         questions.append({
             "id": q_id,
-            "title": title,
             "question_text": text,
             "question_type": qtype,
             "difficulty": diff,
@@ -241,71 +237,46 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
         return {"passed": passed, "total": total,
                 "average": average, "earned_score": earned_score}
     submitted = {ans.question_id: ans.answer for ans in answers}
-    q_ids = list(submitted.keys())
-    if not q_ids:
+    if not submitted:
         raise HTTPException(
             status_code=400, detail={
                 "code": "no_answers_provided"})
-    placeholders = ",".join(["%s"] * len(q_ids))
+    placeholders = ",".join(["%s"] * len(submitted))
     rows = execute(
-        f"SELECT id, correct_answer, difficulty, question_type FROM current_questions WHERE id IN ({placeholders})",
-        tuple(q_ids)
+        f"SELECT id, correct_answer, difficulty FROM current_questions WHERE id IN ({placeholders})",
+        tuple(submitted.keys())
     )
-    # evaluate answers, collect correct and user answer details
     passed = 0
     weighted_score = 0
     weight_map = {"easy": 1, "medium": 2, "hard": 5}
     correct_answers = []
     user_answers_list = []
-    for qid, correct, difficulty, qtype in rows:
-        if isinstance(correct, (list, dict)):
-            correct_val = correct
-        else:
-            correct_val = str(correct).strip() if correct is not None else ''
-        user_raw = submitted.get(qid, '')
-        if isinstance(user_raw, (list, dict)):
-            user_ans_val = user_raw
-        else:
-            user_ans_val = str(user_raw).strip(
-            ) if user_raw is not None else ''
-
-        if qtype == "multiple-choice":
-            correct_list = [c.strip().lower()
-                            for c in (correct_val if isinstance(correct_val, list) else str(correct_val).split(',')) if c.strip()]
-            user_list = [u.strip().lower()
-                         for u in (user_ans_val if isinstance(user_ans_val, list) else str(user_ans_val).split(',')) if u.strip()]
-            is_correct = set(correct_list) == set(user_list)
-            corr_ans = correct_list
-            usr_ans = user_list
-        else:
-            is_correct = bool(
-                correct_val and user_ans_val and
-                str(user_ans_val).lower() == str(correct_val).lower()
-            )
-            corr_ans = correct_val
-            usr_ans = user_ans_val
-
+    for i, (qid, correct_json, difficulty) in enumerate(rows):
+        correct_val = json.loads(correct_json)
+        user_ans = submitted[qid]
+        is_correct = all(
+            str(c).strip().lower() == str(a).strip().lower()
+            for c, a in zip(correct_val, user_ans)
+        )
         if is_correct:
             passed += 1
             weighted_score += weight_map.get(difficulty, 0)
 
         correct_answers.append({
             "question_id": qid,
-            "correct_answer": corr_ans
+            "correct_answer": correct_val
         })
         user_answers_list.append({
             "question_id": qid,
-            "user_answer": usr_ans,
+            "user_answer": submitted[qid],
             "is_correct": is_correct
         })
     total = len(answers)
     average = passed / total if total else 0.0
-    # update test record
     execute(
         "UPDATE tests SET passed = %s, total = %s, average = %s, earned_score = %s WHERE id = %s",
         (passed, total, average, weighted_score, test_id)
     )
-    # update user section stats
     now = datetime.datetime.now(datetime.timezone.utc)
     table = 'fundamentals' if section == 'fundamentals' else 'algorithms'
     execute(
@@ -318,12 +289,11 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
     moscow_tz = datetime.timezone(datetime.timedelta(hours=3))
     now_moscow = datetime.datetime.now(moscow_tz)
     execute("UPDATE tests SET end_time = %s WHERE id = %s", (now_moscow, test_id))
-    # store detailed answers in test_answers table
     for ans in user_answers_list:
-        usr_json = json.dumps(ans["user_answer"])
+        usr_json = json.dumps(ans["user_answer"], ensure_ascii=False)
         corr_val = next(c["correct_answer"]
                         for c in correct_answers if c["question_id"] == ans["question_id"])
-        corr_json = json.dumps(corr_val)
+        corr_json = json.dumps(corr_val, ensure_ascii=False)
         execute(
             "INSERT INTO test_answers (test_id, question_id, user_answer, correct_answer, is_correct) "
             "VALUES (%s, %s, %s, %s, %s)",
