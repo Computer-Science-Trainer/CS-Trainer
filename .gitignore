@@ -24,6 +24,8 @@ __pycache__/
 
 # Environment variables
 env.sh
+.env
+env
 
 # Upload folder
 uploads/

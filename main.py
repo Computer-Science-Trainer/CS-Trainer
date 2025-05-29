@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
+from dotenv import load_dotenv
 import os
 
 from routers.auth_router import router as auth_router
@@ -12,6 +13,7 @@ from routers.topics_router import router as topics_router
 from routers.admin_router import router as admin_router
 from routers.tests_router import router as tests_router
 
+load_dotenv(dotenv_path="env")
 app = FastAPI()
 
 # Add session middleware for OAuthlib

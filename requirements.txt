@@ -11,3 +11,4 @@ redis>=6.2.0
 python-multipart>=0.0.20
 passlib[bcrypt]>=1.7.4
 pydantic[email]>=2.11.5
+python-dotenv
