@@ -312,7 +312,6 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
 
 # Add retrieval of stored answers for a test
 def get_test_answers(user_id: int, test_id: int) -> dict:
-    # verify ownership
     row = execute(
         "SELECT user_id FROM tests WHERE id = %s",
         (test_id,), fetchone=True
@@ -321,7 +320,6 @@ def get_test_answers(user_id: int, test_id: int) -> dict:
         raise HTTPException(status_code=404, detail={"code": "test_not_found"})
     if row[0] != user_id:
         raise HTTPException(status_code=403, detail={"code": "forbidden"})
-    # fetch detailed answers joined with question metadata
     rows = execute(
         "SELECT ta.question_id, ta.correct_answer, ta.user_answer, ta.is_correct, cq.question_type, cq.difficulty "
         "FROM test_answers ta "
@@ -332,40 +330,14 @@ def get_test_answers(user_id: int, test_id: int) -> dict:
     weight_map = {"easy": 1, "medium": 2, "hard": 5}
     answer_list = []
     for qid, corr, ua, ic, qtype, diff in rows:
-        # deserialize JSON stored answers
-        try:
-            correct_val = json.loads(corr) if corr else ''
-        except (TypeError, json.JSONDecodeError):
-            correct_val = corr or ''
-        try:
-            user_val = json.loads(ua) if ua else ''
-        except (TypeError, json.JSONDecodeError):
-            user_val = ua or ''
-
-        # format list outputs with quoted elements, dicts as JSON, else as
-        # string
-        if isinstance(correct_val, list):
-            correct_out = ', '.join(f'"{v}"' for v in correct_val)
-        elif isinstance(correct_val, dict):
-            correct_out = json.dumps(correct_val)
-        else:
-            correct_out = str(correct_val)
-        if isinstance(user_val, list):
-            user_out = ', '.join(f'"{v}"' for v in user_val)
-        elif isinstance(user_val, dict):
-            user_out = json.dumps(user_val)
-        else:
-            user_out = str(user_val)
-
         is_correct = bool(ic)
-        points = weight_map.get(diff, 0) if is_correct else 0
         answer_list.append({
             "question_id": qid,
             "question_type": qtype,
             "difficulty": diff,
-            "user_answer": user_out,
-            "correct_answer": correct_out,
+            "user_answer": json.loads(ua),
+            "correct_answer": json.loads(corr),
             "is_correct": is_correct,
-            "points_awarded": points
+            "points_awarded": weight_map.get(diff, 0) if is_correct else 0
         })
     return {"answers": answer_list}

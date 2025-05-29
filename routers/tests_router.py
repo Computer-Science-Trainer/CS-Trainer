@@ -9,9 +9,8 @@ from services.tests_service import start_test, get_test_questions, submit_test, 
 
 router = APIRouter()
 
+
 # Request and response models
-
-
 class TestStartIn(BaseModel):
     section: str
     topics: List[str]
@@ -66,8 +65,8 @@ class AnswerDetailOut(BaseModel):
     question_id: int
     question_type: str
     difficulty: str
-    user_answer: str
-    correct_answer: str
+    user_answer: List[str]
+    correct_answer: List[str]
     is_correct: bool
     points_awarded: int
 
@@ -93,9 +92,8 @@ def authorize(authorization: str) -> int:
         raise HTTPException(status_code=401, detail={"code": "invalid_token"})
     return user_id
 
+
 # Routes
-
-
 @router.post("/", response_model=TestStartOut, status_code=201)
 def start_test_route(body: TestStartIn, authorization: str = Header(
         None, alias="Authorization")):
