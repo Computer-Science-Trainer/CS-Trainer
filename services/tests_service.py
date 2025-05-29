@@ -1,9 +1,11 @@
 from fastapi import HTTPException
 from database import execute
-from services.user_service import save_user_test
+from services.user_service import save_user_test, get_user_scores
 import datetime
 import json
 import random
+import asyncio
+from services.achievement_service import check_and_award
 
 
 def start_test(user_id: int, section: str, labels: list[str]) -> int:
@@ -315,6 +317,27 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
             (test_id, ans["question_id"], usr_json,
              corr_json, ans["is_correct"])
         )
+    try:
+        scores = get_user_scores(user_id)
+        total_score = scores.get('fundamentals', 0) + \
+            scores.get('algorithms', 0)
+        loop = None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        if loop and loop.is_running():
+            loop.create_task(
+                asyncio.to_thread(
+                    check_and_award,
+                    user_id,
+                    tests_passed=total_score))
+        else:
+            import threading
+            threading.Thread(target=check_and_award, args=(user_id,), kwargs={
+                             "tests_passed": total_score}, daemon=True).start()
+    except Exception:
+        pass
     return {
         "passed": passed,
         "total": total,
