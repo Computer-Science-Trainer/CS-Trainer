@@ -148,7 +148,7 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
 @router.post('/register', status_code=status.HTTP_201_CREATED)
 def register(data: RegisterRequest, background_tasks: BackgroundTasks):
     # Validate username length
-    if len(data.username) > MAX_USERNAME_LEN:
+    if not(3 < len(data.username) <= MAX_USERNAME_LEN):
         raise HTTPException(
             status_code=400, detail={'code': ErrorCodes.USERNAME_LENGTH_INVALID})
     if not re.fullmatch(r'^[A-Za-z0-9_-]+$', data.username):
