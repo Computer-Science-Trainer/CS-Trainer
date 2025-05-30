@@ -8,6 +8,7 @@ import random
 import os
 import uuid
 import secrets
+import re
 from security import create_access_token, decode_access_token, verify_password
 from jwt import ExpiredSignatureError, InvalidTokenError
 from services.email_service import send_verification_email
@@ -51,6 +52,7 @@ class ErrorCodes:
     GITHUB_LENGTH_INVALID = 'github_length_invalid'
     WEBSITE_LENGTH_INVALID = 'website_length_invalid'
     BIO_LENGTH_INVALID = 'bio_length_invalid'
+    USERNAME_FORMAT_INVALID = 'username_format_invalid'
 
 
 # Request models
@@ -149,6 +151,9 @@ def register(data: RegisterRequest, background_tasks: BackgroundTasks):
     if len(data.username) > MAX_USERNAME_LEN:
         raise HTTPException(
             status_code=400, detail={'code': ErrorCodes.USERNAME_LENGTH_INVALID})
+    if not re.fullmatch(r'^[A-Za-z0-9_-]+$', data.username):
+        raise HTTPException(
+            status_code=400, detail={'code': ErrorCodes.USERNAME_FORMAT_INVALID})
     # Validate email length
     if len(data.email) > MAX_EMAIL_LEN:
         raise HTTPException(
@@ -342,6 +347,12 @@ async def update_profile(
         raise HTTPException(
             status_code=400, detail={
                 'code': ErrorCodes.USERNAME_LENGTH_INVALID})
+    # Validate username format: only English letters, digits, underscores and
+    # hyphens
+    if username is not None and not re.fullmatch(
+            r'^[A-Za-z0-9_-]+$', username):
+        raise HTTPException(
+            status_code=400, detail={'code': ErrorCodes.USERNAME_FORMAT_INVALID})
     if email is not None and len(email) > MAX_EMAIL_LEN:
         raise HTTPException(
             status_code=400, detail={
@@ -465,9 +476,16 @@ def login_telegram(data: LoginTelegramRequest,
 def link_telegram(data: LinkTelegramRequest):
     user = get_user_by_email(data.email)
     if not user:
-        raise HTTPException(status_code=404, detail={'code': ErrorCodes.USER_NOT_FOUND})
+        raise HTTPException(
+            status_code=404, detail={
+                'code': ErrorCodes.USER_NOT_FOUND})
     if not verify_password(data.password, user['password']):
-        raise HTTPException(status_code=401, detail={'code': ErrorCodes.INVALID_CREDENTIALS})
-    if change_db_users(data.email, ('telegram', data.telegram_username)) != 'success':
-        raise HTTPException(status_code=500, detail={'code': ErrorCodes.SAVING_FAILED})
+        raise HTTPException(
+            status_code=401, detail={
+                'code': ErrorCodes.INVALID_CREDENTIALS})
+    if change_db_users(data.email, ('telegram',
+                       data.telegram_username)) != 'success':
+        raise HTTPException(
+            status_code=500, detail={
+                'code': ErrorCodes.SAVING_FAILED})
     return {'linked': True}
