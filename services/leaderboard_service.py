@@ -24,7 +24,6 @@ def get_leaderboard(number_of_users: int = 100) -> dict:
         LIMIT %s
     """
     fund_data = execute(fund_query, (number_of_users,))
-    print(f"Fundamentals data: {fund_data}")
     alg_data = execute(alg_query, (number_of_users,))
 
     fundamentals = [
