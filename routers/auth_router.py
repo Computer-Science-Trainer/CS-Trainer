@@ -22,6 +22,8 @@ MAX_GITHUB_LEN = 255
 MAX_WEBSITE_LEN = 255
 MAX_BIO_LEN = 500
 
+# Blacklisted usernames (case-insensitive)
+USERNAME_BLACKLIST = {'admin', 'tests', 'about', 'settings', 'leaderboard'}
 
 router = APIRouter()
 
@@ -53,6 +55,7 @@ class ErrorCodes:
     WEBSITE_LENGTH_INVALID = 'website_length_invalid'
     BIO_LENGTH_INVALID = 'bio_length_invalid'
     USERNAME_FORMAT_INVALID = 'username_format_invalid'
+    USERNAME_BLACKLISTED = 'username_blacklisted'
 
 
 # Request models
@@ -148,12 +151,16 @@ def login(data: LoginRequest, background_tasks: BackgroundTasks):
 @router.post('/register', status_code=status.HTTP_201_CREATED)
 def register(data: RegisterRequest, background_tasks: BackgroundTasks):
     # Validate username length
-    if not(3 < len(data.username) <= MAX_USERNAME_LEN):
+    if not (3 < len(data.username) <= MAX_USERNAME_LEN):
         raise HTTPException(
             status_code=400, detail={'code': ErrorCodes.USERNAME_LENGTH_INVALID})
     if not re.fullmatch(r'^[A-Za-z0-9_-]+$', data.username):
         raise HTTPException(
             status_code=400, detail={'code': ErrorCodes.USERNAME_FORMAT_INVALID})
+    # Reject blacklisted usernames
+    if data.username.lower() in USERNAME_BLACKLIST:
+        raise HTTPException(
+            status_code=400, detail={'code': ErrorCodes.USERNAME_BLACKLISTED})
     # Validate email length
     if len(data.email) > MAX_EMAIL_LEN:
         raise HTTPException(
@@ -353,6 +360,10 @@ async def update_profile(
             r'^[A-Za-z0-9_-]+$', username):
         raise HTTPException(
             status_code=400, detail={'code': ErrorCodes.USERNAME_FORMAT_INVALID})
+    # Reject blacklisted usernames
+    if username is not None and username.lower() in USERNAME_BLACKLIST:
+        raise HTTPException(
+            status_code=400, detail={'code': ErrorCodes.USERNAME_BLACKLISTED})
     if email is not None and len(email) > MAX_EMAIL_LEN:
         raise HTTPException(
             status_code=400, detail={
