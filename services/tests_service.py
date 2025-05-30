@@ -61,6 +61,8 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
                     "question_text": r[1], "question_type": r[2], "difficulty": r[3],
                     "options": json.loads(r[4]) if r[4] else []
                 })
+        for q in questions:
+            random.shuffle(q["options"])
         # load topics labels
         topics = []
         if topic_ids:
@@ -153,7 +155,8 @@ def get_test_questions(user_id: int, test_id: int) -> dict:
             "difficulty": diff,
             "options": json.loads(opts_json) if opts_json else []
         })
-    # calculate total duration and end time
+    for q in questions:
+        random.shuffle(q["options"])
     difficulty_map = {"easy": 1, "medium": 2, "hard": 5}
     total_minutes = sum(
         difficulty_map.get(q["difficulty"], 1)
