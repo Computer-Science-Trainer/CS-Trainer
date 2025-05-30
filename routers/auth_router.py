@@ -108,6 +108,7 @@ class LoginTelegramRequest(BaseModel):
 class LinkTelegramRequest(BaseModel):
     telegram_username: str
     email: EmailStr
+    password: str
 
 
 # Endpoints
@@ -464,10 +465,9 @@ def login_telegram(data: LoginTelegramRequest,
 def link_telegram(data: LinkTelegramRequest):
     user = get_user_by_email(data.email)
     if not user:
-        raise HTTPException(status_code=404, detail='email not registered')
-    if change_db_users(data.email, ('telegram',
-                       data.telegram_username)) != 'success':
-        raise HTTPException(
-            status_code=500, detail={
-                'code': ErrorCodes.SAVING_FAILED})
+        raise HTTPException(status_code=404, detail={'code': ErrorCodes.USER_NOT_FOUND})
+    if not verify_password(data.password, user['password']):
+        raise HTTPException(status_code=401, detail={'code': ErrorCodes.INVALID_CREDENTIALS})
+    if change_db_users(data.email, ('telegram', data.telegram_username)) != 'success':
+        raise HTTPException(status_code=500, detail={'code': ErrorCodes.SAVING_FAILED})
     return {'linked': True}
