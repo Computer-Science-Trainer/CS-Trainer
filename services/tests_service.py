@@ -271,10 +271,15 @@ def submit_test(user_id: int, test_id: int, answers: list[dict]) -> dict:
     for i, (qid, correct_json, difficulty, question_type) in enumerate(rows):
         correct_val = json.loads(correct_json)
         user_ans = submitted[qid]
-        is_correct = len(user_ans) == len(correct_val) and all(
-            str(c).strip().lower() == str(a).strip().lower()
-            for c, a in zip(correct_val, user_ans)
-        )
+        if question_type == 'multiple-choice' and len(correct_val) > 1:
+            norm_c = sorted(str(c).strip().lower() for c in correct_val)
+            norm_u = sorted(str(a).strip().lower() for a in user_ans)
+            is_correct = norm_c == norm_u
+        else:
+            is_correct = len(user_ans) == len(correct_val) and all(
+                str(c).strip().lower() == str(a).strip().lower()
+                for c, a in zip(correct_val, user_ans)
+            )
         if is_correct:
             passed += 1
             weighted_score += weight_map.get(difficulty, 0)
