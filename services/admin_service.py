@@ -271,8 +271,8 @@ def get_questions_feedback() -> List[Dict[str, Any]]:
     # fetch feedback and associated question details
     rows = execute(
         "SELECT qf.question_id, qf.user_id, qf.rating, qf.feedback_message, qf.created_at, "
-        "cq.question_text, cq.question_type, cq.difficulty, cq.options, cq.correct_answer, cq.topic_code, cq.proposer_id "
-        "FROM questions_feedback qf JOIN current_questions cq ON qf.question_id = cq.id"
+        "cq.question_text, cq.question_type, cq.difficulty, cq.options, cq.correct_answer, cq.topic_code, "
+        "cq.proposer_id FROM questions_feedback qf JOIN current_questions cq ON qf.question_id = cq.id"
     )
     result: List[Dict[str, Any]] = []
     for r in rows:

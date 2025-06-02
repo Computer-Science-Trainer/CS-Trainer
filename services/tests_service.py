@@ -6,6 +6,7 @@ import json
 import random
 import asyncio
 from services.achievement_service import check_and_award
+from typing import Optional
 
 
 def start_test(user_id: int, section: str, labels: list[str]) -> int:
@@ -389,7 +390,8 @@ def get_test_answers(user_id: int, test_id: int) -> dict:
     return {"answers": answer_list}
 
 
-def save_question_feedback(user_id: int, test_id: int, question_id: int, rating: int, feedback_message: str | None = None) -> None:
+def save_question_feedback(user_id: int, test_id: int, question_id: int,
+                           rating: int, feedback_message: Optional[str] = None) -> None:
     row = execute(
         "SELECT id FROM tests WHERE id = %s",
         (test_id,), fetchone=True

@@ -79,21 +79,21 @@ class FeedbackOut(BaseModel):
     question: QuestionOut
     user_id: int
     rating: int
-    feedback_message: str
+    feedback_message: Optional[str]
     created_at: datetime
 
 
-@router.get('/questions', response_model=List[QuestionOut])
+@router.get('/questions', response_model=List[QuestionOut], dependencies=[Depends(admin_required)])
 def list_questions():
     return get_current_questions()
 
 
-@router.post('/questions', response_model=QuestionOut, status_code=201)
+@router.post('/questions', response_model=QuestionOut, status_code=201, dependencies=[Depends(admin_required)])
 def create_question(q: QuestionIn):
     return add_question(q)
 
 
-@router.put('/questions/{question_id}', response_model=QuestionOut)
+@router.put('/questions/{question_id}', response_model=QuestionOut, dependencies=[Depends(admin_required)])
 def edit_question(question_id: int, q: QuestionIn):
     updated = update_question(question_id, q)
     if not updated:
@@ -103,7 +103,7 @@ def edit_question(question_id: int, q: QuestionIn):
     return updated
 
 
-@router.delete('/questions/{question_id}', status_code=204)
+@router.delete('/questions/{question_id}', status_code=204, dependencies=[Depends(admin_required)])
 def remove_question(question_id: int):
     success = delete_question(question_id)
     if not success:
@@ -112,17 +112,17 @@ def remove_question(question_id: int):
                 'code': 'question_not_found'})
 
 
-@router.get('/proposed', response_model=List[QuestionOut])
+@router.get('/proposed', response_model=List[QuestionOut], dependencies=[Depends(admin_required)])
 def list_proposed():
     return get_proposed_questions()
 
 
-@router.post('/proposed', response_model=QuestionOut, status_code=201)
+@router.post('/proposed', response_model=QuestionOut, status_code=201, dependencies=[Depends(admin_required)])
 def create_proposed(q: QuestionIn):
     return add_proposed_question(q)
 
 
-@router.put('/proposed/{question_id}', response_model=QuestionOut)
+@router.put('/proposed/{question_id}', response_model=QuestionOut, dependencies=[Depends(admin_required)])
 def edit_proposed(question_id: int, q: QuestionIn):
     updated = update_proposed_question(question_id, q)
     if not updated:
@@ -132,7 +132,7 @@ def edit_proposed(question_id: int, q: QuestionIn):
     return updated
 
 
-@router.post('/proposed/{question_id}/approve', response_model=QuestionOut)
+@router.post('/proposed/{question_id}/approve', response_model=QuestionOut, dependencies=[Depends(admin_required)])
 def approve(question_id: int):
     approved = approve_proposed_question(question_id)
     if not approved:
@@ -142,7 +142,7 @@ def approve(question_id: int):
     return approved
 
 
-@router.post('/proposed/{question_id}/reject', status_code=204)
+@router.post('/proposed/{question_id}/reject', status_code=204, dependencies=[Depends(admin_required)])
 def reject(question_id: int):
     success = reject_proposed_question(question_id)
     if not success:
@@ -151,11 +151,11 @@ def reject(question_id: int):
                 'code': 'proposal_not_found'})
 
 
-@router.get('/settings', response_model=SettingsOut)
+@router.get('/settings', response_model=SettingsOut, dependencies=[Depends(admin_required)])
 def settings():
     return get_settings()
 
 
-@router.get('/feedback', response_model=List[FeedbackOut])
+@router.get('/feedback', response_model=List[FeedbackOut], dependencies=[Depends(admin_required)])
 def list_feedback():
     return get_questions_feedback()
