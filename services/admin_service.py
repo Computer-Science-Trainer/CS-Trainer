@@ -265,3 +265,36 @@ def get_settings() -> Dict[str, Any]:
         "google_client_id": os.getenv("GOOGLE_CLIENT_ID") or "undefined",
         "github_client_id": os.getenv("GITHUB_CLIENT_ID") or "undefined"
     }
+
+
+def get_questions_feedback() -> List[Dict[str, Any]]:
+    # fetch feedback and associated question details
+    rows = execute(
+        "SELECT qf.question_id, qf.user_id, qf.rating, qf.feedback_message, qf.created_at, "
+        "cq.question_text, cq.question_type, cq.difficulty, cq.options, cq.correct_answer, cq.topic_code, cq.proposer_id "
+        "FROM questions_feedback qf JOIN current_questions cq ON qf.question_id = cq.id"
+    )
+    result: List[Dict[str, Any]] = []
+    for r in rows:
+        opts = json.loads(r[8])
+        corr = json.loads(r[9])
+        if isinstance(corr, str):
+            corr = json.loads(corr)
+        question = {
+            "id": r[0],
+            "question_text": r[5],
+            "question_type": r[6],
+            "difficulty": r[7],
+            "options": opts,
+            "correct_answer": corr,
+            "topic_code": r[10],
+            "proposer_id": r[11]
+        }
+        result.append({
+            "question": question,
+            "user_id": r[1],
+            "rating": r[2],
+            "feedback_message": r[3],
+            "created_at": r[4]
+        })
+    return result

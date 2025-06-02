@@ -6,8 +6,9 @@ from services.admin_service import (
     add_question, update_question, delete_question,
     approve_proposed_question, reject_proposed_question,
     get_settings, add_proposed_question, update_proposed_question,
-    is_user_admin
+    is_user_admin, get_questions_feedback
 )
+from datetime import datetime
 
 
 def admin_required(
@@ -72,6 +73,14 @@ class SettingsOut(BaseModel):
     from_email: str
     google_client_id: str
     github_client_id: str
+
+
+class FeedbackOut(BaseModel):
+    question: QuestionOut
+    user_id: int
+    rating: int
+    feedback_message: str
+    created_at: datetime
 
 
 @router.get('/questions', response_model=List[QuestionOut])
@@ -145,3 +154,8 @@ def reject(question_id: int):
 @router.get('/settings', response_model=SettingsOut)
 def settings():
     return get_settings()
+
+
+@router.get('/feedback', response_model=List[FeedbackOut])
+def list_feedback():
+    return get_questions_feedback()
