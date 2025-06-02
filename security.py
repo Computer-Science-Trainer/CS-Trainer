@@ -3,6 +3,9 @@ import jwt
 import datetime
 from typing import Optional
 from passlib.context import CryptContext
+from dotenv import load_dotenv
+
+load_dotenv()
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY:

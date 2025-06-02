@@ -6,6 +6,7 @@ import json
 import random
 import asyncio
 from services.achievement_service import check_and_award
+from typing import Optional
 
 
 def start_test(user_id: int, section: str, labels: list[str]) -> int:
@@ -387,3 +388,27 @@ def get_test_answers(user_id: int, test_id: int) -> dict:
             "points_awarded": weight_map.get(diff, 0) if is_correct else 0
         })
     return {"answers": answer_list}
+
+
+def save_question_feedback(user_id: int, test_id: int, question_id: int,
+                           rating: int, feedback_message: Optional[str] = None) -> None:
+    row = execute(
+        "SELECT id FROM tests WHERE id = %s",
+        (test_id,), fetchone=True
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail={"code": "test_not_found"})
+    if not (1 <= rating <= 5):
+        raise HTTPException(status_code=400, detail={"code": "invalid_rating"})
+    now = datetime.datetime.now(datetime.timezone.utc)
+    exists = execute(
+        "SELECT id FROM current_questions WHERE id = %s",
+        (question_id,), fetchone=True
+    )
+    if not exists:
+        raise HTTPException(status_code=404, detail={"code": "question_not_found"})
+    execute(
+        "INSERT INTO questions_feedback (question_id, user_id, rating, feedback_message, created_at) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (question_id, user_id, rating, feedback_message, now)
+    )

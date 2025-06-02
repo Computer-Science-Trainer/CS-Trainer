@@ -5,7 +5,7 @@ import datetime
 
 from security import decode_access_token
 from jwt import ExpiredSignatureError, InvalidTokenError
-from services.tests_service import start_test, get_test_questions, submit_test, get_test_answers
+from services.tests_service import start_test, get_test_questions, submit_test, get_test_answers, save_question_feedback
 
 router = APIRouter()
 
@@ -74,6 +74,12 @@ class TestAnswersOut(BaseModel):
     answers: List[AnswerDetailOut]
 
 
+class FeedbackIn(BaseModel):
+    question_id: int
+    rating: int
+    feedback_message: Optional[str] = None
+
+
 # Authorization helper
 def authorize(authorization: str) -> int:
     if not authorization or not authorization.startswith("Bearer "):
@@ -119,3 +125,19 @@ def get_test_answers_route(
         test_id: int, authorization: str = Header(None, alias="Authorization")):
     user_id = authorize(authorization)
     return get_test_answers(user_id, test_id)
+
+
+@router.post("/{test_id}/feedback", status_code=201)
+def submit_feedback_route(
+        test_id: int,
+        body: FeedbackIn,
+        authorization: str = Header(None, alias="Authorization")):
+    user_id = authorize(authorization)
+    save_question_feedback(
+        user_id,
+        test_id,
+        body.question_id,
+        body.rating,
+        body.feedback_message
+    )
+    return {"status": "success"}

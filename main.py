@@ -1,21 +1,18 @@
+from routers.tests_router import router as tests_router
+from routers.admin_router import router as admin_router
+from routers.topics_router import router as topics_router
+from routers.oauth_router import router as oauth_router
+from routers.leaderboard_router import router as leaderboard_router
+from routers.user_router import router as user_router
+from routers.auth_router import router as auth_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
 import os
 
-from routers.auth_router import router as auth_router
-from routers.user_router import router as user_router
-from routers.leaderboard_router import router as leaderboard_router
-from routers.oauth_router import router as oauth_router
-from routers.topics_router import router as topics_router
-from routers.admin_router import router as admin_router
-from routers.tests_router import router as tests_router
 
-load_dotenv(dotenv_path="env")
 app = FastAPI()
-
 # Add session middleware for OAuthlib
 app.add_middleware(
     SessionMiddleware,
